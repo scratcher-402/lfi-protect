@@ -1,3 +1,3 @@
 module github.com/scratcher402/lfi-protect
 
-go 1.25.3
+go 1.25.2
