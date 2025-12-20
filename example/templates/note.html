@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ note.title }} - ЗАМЕТКИ.ОНЛАЙН{% endblock %}
+
+{% block content %}
+<div class="note-view">
+    <div class="note-header">
+        <h2>{{ note.title }}</h2>
+        <div class="note-actions">
+            {% if can_edit %}
+            <a href="{{ url_for('edit_note', note_id=note.id) }}" class="btn btn-secondary">Редактировать</a>
+            <a href="{{ url_for('share_note', note_id=note.id) }}" class="btn btn-secondary">Поделиться</a>
+            <form action="{{ url_for('delete_note', note_id=note.id) }}" method="POST" 
+                  onsubmit="return confirm('Вы уверены, что хотите удалить эту заметку?');"
+                  style="display: inline;">
+                <button type="submit" class="btn btn-danger">Удалить</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="note-meta-info">
+        <p><strong>Автор:</strong> {{ note.owner.username }}</p>
+        <p><strong>Создано:</strong> {{ note.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+        <p><strong>Обновлено:</strong> {{ note.updated_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    </div>
+    
+    <div class="note-content">
+        {{ note.content|safe|replace('\n', '<br>') }}
+    </div>
+    
+    {% if files %}
+    <div class="note-files">
+        <h3>Прикрепленные файлы</h3>
+        <ul>
+            {% for file in files %}
+            <li>
+                <a href="/download?filename={{file.unique_filename}}&user_id={{current_user.id}}&note_id={{note.id}}" class="file-link">
+                    📎 {{ file.filename }}
+                </a>
+                {% if can_edit %}
+                <a href="{{ url_for('delete_file', file_id=file.id) }}" 
+                   onclick="return confirm('Удалить этот файл?');"
+                   class="file-delete">🗑️</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    {% if shared_with and can_edit %}
+    <div class="note-sharing">
+        <h3>Доступ предоставлен:</h3>
+        <ul>
+            {% for user in shared_with %}
+            <li>
+                {{ user.username }}
+                <a href="{{ url_for('unshare_note', note_id=note.id, user_id=user.id) }}"
+                   onclick="return confirm('Отозвать доступ у {{ user.username }}?');"
+                   class="unshare-link">Отозвать доступ</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Мои заметки - ЗАМЕТКИ.ОНЛАЙН{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Мои заметки</h2>
+    <a href="{{ url_for('new_note') }}" class="btn btn-primary">+ Новая заметка</a>
+</div>
+
+{% if user_notes %}
+<div class="notes-section">
+    <h3>Мои заметки</h3>
+    <div class="notes-grid">
+        {% for note in user_notes %}
+        <div class="note-card">
+            <h4><a href="{{ url_for('view_note', note_id=note.id) }}">{{ note.title }}</a></h4>
+            <p class="note-preview">{{ note.content[:100] }}{% if note.content|length > 100 %}...{% endif %}</p>
+            <div class="note-meta">
+                <span>Обновлено: {{ note.updated_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                <div class="note-actions">
+                    <a href="{{ url_for('edit_note', note_id=note.id) }}">✏️</a>
+                    <a href="{{ url_for('share_note', note_id=note.id) }}">👥</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<p>У вас еще нет заметок. <a href="{{ url_for('new_note') }}">Создайте первую!</a></p>
+{% endif %}
+
+{% if shared_notes %}
+<div class="notes-section">
+    <h3>Заметки, к которым мне предоставили доступ</h3>
+    <div class="notes-grid">
+        {% for note in shared_notes %}
+        <div class="note-card">
+            <h4><a href="{{ url_for('view_note', note_id=note.id) }}">{{ note.title }}</a></h4>
+            <p class="note-author">Автор: {{ note.owner.username }}</p>
+            <p class="note-preview">{{ note.content[:100] }}{% if note.content|length > 100 %}...{% endif %}</p>
+            <div class="note-meta">
+                <span>Обновлено: {{ note.updated_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
