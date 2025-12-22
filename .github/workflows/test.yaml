@@ -1,0 +1,108 @@
+name: Run tests
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:  # Позволяет запускать вручную
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Install Python dependencies
+      run: |
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        fi
+        if [ -f "example/requirements.txt" ]; then
+          pip install -r example/requirements.txt
+        fi
+
+    - name: Run Go application in background
+      run: |
+        # Запускаем Go приложение в фоне
+        go run . &
+        echo $! > go_app.pid
+        echo "Go application started with PID: $(cat go_app.pid)"
+
+    - name: Wait for Go application initialization
+      run: |
+        echo "Waiting 10 seconds for Go application to initialize..."
+        sleep 10
+        echo "Checking if Go application is running..."
+        if ps -p $(cat go_app.pid) > /dev/null; then
+          echo "Go application is running"
+        else
+          echo "ERROR: Go application failed to start"
+          exit 1
+        fi
+
+    - name: Run Python app in background
+      run: |
+        # Запускаем Python приложение в фоне
+        cd example
+        python app.py &
+        echo $! > python_app.pid
+        echo "Python app started with PID: $(cat python_app.pid)"
+        cd ..
+
+    - name: Wait for Python app initialization
+      run: |
+        echo "Waiting 10 seconds for Python app to initialize..."
+        sleep 10
+        echo "Checking if Python app is running..."
+        if [ -f "example/python_app.pid" ] && ps -p $(cat example/python_app.pid) > /dev/null; then
+          echo "Python app is running"
+        else
+          echo "WARNING: Python app might have exited"
+        fi
+
+    - name: Run Python tests
+      run: |
+        echo "Running Python tests..."
+        cd example
+        python test.py
+        cd ..
+
+    - name: Cleanup background processes
+      if: always()
+      run: |
+        echo "Cleaning up background processes..."
+        
+        # Останавливаем Python app
+        if [ -f "example/python_app.pid" ]; then
+          python_pid=$(cat example/python_app.pid)
+          if ps -p $python_pid > /dev/null; then
+            echo "Killing Python app (PID: $python_pid)"
+            kill $python_pid 2>/dev/null || true
+          fi
+          rm -f example/python_app.pid
+        fi
+        
+        # Останавливаем Go приложение
+        if [ -f "go_app.pid" ]; then
+          go_pid=$(cat go_app.pid)
+          if ps -p $go_pid > /dev/null; then
+            echo "Killing Go application (PID: $go_pid)"
+            kill $go_pid 2>/dev/null || true
+          fi
+          rm -f go_app.pid
+        fi
+        
+        echo "Cleanup completed"

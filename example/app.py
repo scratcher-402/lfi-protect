@@ -122,6 +122,7 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+# flag{app_source_code_leaked}
 
 @app.route('/dashboard')
 @login_required
@@ -366,8 +367,9 @@ def download_file():
             abort(403)
     
     # Небезопасное получение файла - ввод пользователя в имени никак не проверяется
-    file_path = os.path.join(str(user_id), str(note_id), filename)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], file_path, as_attachment=True, download_name=filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id), str(note_id), filename)
+    print(file_path)
+    return send_from_directory(".", file_path, as_attachment=True, download_name=filename)
 
 # Инициализация
 with app.app_context():
