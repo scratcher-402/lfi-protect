@@ -7,7 +7,6 @@ import (
 	"net"
 	"fmt"
 	"regexp"
-	"context"
 	)
 
 type Proxy struct {
@@ -25,35 +24,14 @@ func NewProxy(baseURL string) (*Proxy, error) {
 
 	originalDirector := proxy.Director
 
-	lfi_pattern := regexp.MustCompile(`.*\.\./.*`)
-
 	proxy.Director = func(req *http.Request) {
 		ip, _, _ := net.SplitHostPort(req.RemoteAddr)
 		originalDirector(req)
 		req.Header.Set("X-Real-IP", string(ip))
 		fmt.Println("[ ... ]", req.Method, req.URL.Path)
-		err := checkURL(req, lfi_pattern)
-		if (err != nil) {
-			fmt.Println("LFI pattern in URL detected")
-			ctx := context.WithValue(req.Context(), "blocked", err)
-			*req = *req.WithContext(ctx)
-		}
-		
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if blockedReason := r.Context().Value("blocked"); blockedReason != nil {
-			w.Header().Set("Content-Type", "text/html; charset: utf-8")
-			w.Header().Set("X-Blocked", "true")
-			w.WriteHeader(http.StatusForbidden)
-			html := `<!DOCTYPE html>
-					 <html lang="en">
-					 <head><title>Request blocked due to security reasons</title></head>
-					 <body><h1>Request blocked due to security reasons</h1>Scr-LFI-Protect</body>
-					 </html>`
-			w.Write([]byte(html))
-			fmt.Println("[ -X  ] Request blocked")
-		}
 		w.WriteHeader(http.StatusBadGateway)
 		fmt.Printf("[  !  ] Proxy error: %v\n", err)
 	}
