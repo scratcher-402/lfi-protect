@@ -53,12 +53,28 @@ func NewProxy(config *ProxyConfig) (*Proxy, error) {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	URLBlocked := p.checkURL(r)
-	bodyBlocked := p.checkRequestBody(r)
-	if URLBlocked != nil || bodyBlocked != nil {
-		p.sendBlockMessage(w, r)
-		return
+	err := p.checkURL(r)
+	if err != nil {
+		if strings.Contains(err.Error(), "LFI") {
+			p.sendBlockMessage(w, r)
+			return
+		} else {
+			fmt.Println(err)
+			p.sendErrorMessage(w, r)
+			return
 		}
+	}
+	err = p.checkRequestBody(r)
+	if err != nil {
+		if strings.Contains(err.Error(), "LFI") {
+			p.sendBlockMessage(w, r)
+			return
+		} else {
+			fmt.Println(err)
+			p.sendErrorMessage(w, r)
+			return
+		}
+	}
 	p.proxy.ServeHTTP(w, r)
 	fmt.Println("[ --> ] Request sent")
 }
@@ -79,8 +95,25 @@ func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
 			 </html>`
 	w.Write([]byte(html))
 	fmt.Println("[ -X  ] Request blocked")
-	return
 }
+
+func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset: utf-8")
+	w.WriteHeader(http.StatusBadGateway)
+	html := `<!DOCTYPE html>
+			 <html lang="en">
+			 <head>
+			 	<title>Request processing error</title>
+			 </head>
+			 <body>
+			 	<h1>Request processing error</h1>
+			 	Scr-LFI-Protect
+			 </body>
+			 </html>`
+	w.Write([]byte(html))
+	fmt.Println("[  !  ] Request processing error")
+}
+
 
 func (p *Proxy) checkRequestBody(r *http.Request) error {
 	fmt.Println(r)
@@ -129,6 +162,53 @@ func (p *Proxy) checkRequestForm(r *http.Request) error {
 }
 
 func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
+	if !p.config.CheckQuery && !p.config.CheckFilenames {
+		return nil
+	}
+
+	var bodyBuffer bytes.Buffer
+	bodyReader := io.TeeReader(r.Body, &bodyBuffer)
+	reqParse := &http.Request{
+		Method: r.Method,
+		Header: r.Header,
+		Body: io.NopCloser(bodyReader),
+	}
+
+	reader, err := reqParse.MultipartReader()
+	if err != nil {
+		return err
+	}
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		field := part.FormName()
+		fileName := part.FileName()
+
+		if fileName != "" {
+			if p.LFIPattern.MatchString(fileName) {
+				return fmt.Errorf("LFI pattern in filename detected")
+			}
+		} else {
+			if p.fieldCheckNeeded(field) {
+				value, err := io.ReadAll(part)
+				if err != nil {
+					return err
+				}
+				if p.LFIPattern.Match(value) {
+					return fmt.Errorf("LFI pattern in form field detected")
+				}
+			}
+		}
+	}
+
+	r.Body = io.NopCloser(&bodyBuffer)
 	return nil
 }
 
