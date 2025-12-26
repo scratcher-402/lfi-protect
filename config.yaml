@@ -1,3 +1,4 @@
 proxy:
     listen: ":1545"
     server: "http://localhost:1544"
+    max-req-body-size: 16000000

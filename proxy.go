@@ -7,16 +7,20 @@ import (
 	"net"
 	"fmt"
 	"regexp"
+	"strings"
 	)
 
 type Proxy struct {
 	baseURL *url.URL
 	proxy *httputil.ReverseProxy
+	LFIPattern *regexp.Regexp
+	config *ProxyConfig
+	checkFields map[string]bool
 }
 
 
-func NewProxy(baseURL string) (*Proxy, error) {
-	base, err := url.Parse(baseURL)
+func NewProxy(config ProxyConfig) (*Proxy, error) {
+	base, err := url.Parse(config.ServerAddr)
 	if (err != nil) {
 		return nil, err
 	}
@@ -36,36 +40,81 @@ func NewProxy(baseURL string) (*Proxy, error) {
 		fmt.Printf("[  !  ] Proxy error: %v\n", err)
 	}
 
-	return &Proxy{proxy: proxy, baseURL: base}, nil
+	LFIPattern := regexp.MustCompile(`.*\.\./.*`)
+
+	checkFields := map[string]bool
+	for _, fieldName := range config.CheckFields {
+		checkFields[fieldName] := true
+	}
+
+	return &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern}, nil
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	lfi_pattern := regexp.MustCompile(`.*\.\./.*`)
-	if blocked := checkURL(r, lfi_pattern); blocked != nil {
-		w.Header().Set("Content-Type", "text/html; charset: utf-8")
-		w.Header().Set("X-Blocked", "true")
-		w.WriteHeader(http.StatusForbidden)
-		html := `<!DOCTYPE html>
-				 <html lang="en">
-				 <head><title>Request blocked due to security reasons</title></head>
-				 <body><h1>Request blocked due to security reasons</h1>Scr-LFI-Protect</body>
-				 </html>`
-		w.Write([]byte(html))
-		fmt.Println("[ -X  ] Request blocked")
-		return
+	URLBlocked := p.checkURL(r)
+	bodyBlocked := p.checkRequestBody(r)
+	if URLBlocked != nil || bodyBlocked != nil {
+		p.sendBlockMessage(w, r)
 		}
 	p.proxy.ServeHTTP(w, r)
 	fmt.Println("[ --> ] Request sent")
 }
 
-func checkURL(req *http.Request, pattern *regexp.Regexp) error {
-	for _, values := range req.URL.Query() {
+func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset: utf-8")
+	w.Header().Set("X-Blocked", "true")
+	w.WriteHeader(http.StatusForbidden)
+	html := `<!DOCTYPE html>
+			 <html lang="en">
+			 <head>
+			 	<title>Request blocked due to security reasons</title>
+			 </head>
+			 <body>
+			 	<h1>Request blocked due to security policy</h1>
+			 	Scr-LFI-Protect
+			 </body>
+			 </html>`
+	w.Write([]byte(html))
+	fmt.Println("[ -X  ] Request blocked")
+	return
+}
+
+func (p *Proxy) checkRequestBody(r *http.Request) error {
+	contentType := r.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+		return p.checkRequestForm(r)
+	}
+	if strings.Contains(contemtType, "multipart/form-data") {
+		return p.checkRequestMultipartForm(r)
+	}
+	if strings.Contains(contentType, "application/json") {
+		return p.checkRequestJSON(r)
+	}
+	return nil
+	}
+
+func (p *Proxy) checkRe
+
+func (p *Proxy) checkURL(req *http.Request) error {
+	for key, values := range req.URL.Query() {
 		for _, value := range values {
-			if pattern.MatchString(value) {
-				return fmt.Errorf("Pattern in query detected")
+			if p.fieldChevkNeeded(key) {
+				if p.LFIPattern.MatchString(value) {
+					return fmt.Errorf("Pattern in query detected")
+				}
 			}
 		}
 	}
 	return nil
 }
 
+func (p *Proxy) fieldCheckNeeded(fieldName string) bool {
+	if p.config.CheckAllFields {
+		return true
+	}
+	value, exists := p.checkFields[fieldName]
+	if !exists {
+		return false
+	}
+	return value
+}
