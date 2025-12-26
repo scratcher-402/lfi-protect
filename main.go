@@ -14,7 +14,8 @@ type ProxyConfig struct {
 	ListenAddr string `yaml:"listen"`
 	ServerAddr string `yaml:"server"`
 	MaxReqBodySize int `yaml:"max-req-body-size"`
-	CheckForms bool `yaml:"check-forms"`
+	CheckURL bool `yaml:"check-url"`
+	CheckQuery bool `yaml:"check-query"`
 	CheckFilenames bool `yaml:"check-filenames"`
 	CheckJSON bool `yaml:"check-json"`
 	CheckAllFields bool `yaml:"check-all-fields"`
@@ -35,10 +36,11 @@ func main() {
 	fmt.Println("Scr-LFI-Protect")
 	fmt.Println("Проксируем:", config.Proxy.ServerAddr)
 	fmt.Println("Прокси работает на", config.Proxy.ListenAddr)
-	proxy, err := NewProxy(config.Proxy)
+	proxy, err := NewProxy(&config.Proxy)
 	if (err != nil) {
 		fmt.Println("Ошибка создания прокси")
 		return
 	}
+	fmt.Println(config)
 	http.ListenAndServe(config.Proxy.ListenAddr, proxy)
 	}

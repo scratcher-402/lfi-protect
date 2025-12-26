@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"bytes"
+	"io"
 	)
 
 type Proxy struct {
@@ -19,7 +21,7 @@ type Proxy struct {
 }
 
 
-func NewProxy(config ProxyConfig) (*Proxy, error) {
+func NewProxy(config *ProxyConfig) (*Proxy, error) {
 	base, err := url.Parse(config.ServerAddr)
 	if (err != nil) {
 		return nil, err
@@ -42,12 +44,12 @@ func NewProxy(config ProxyConfig) (*Proxy, error) {
 
 	LFIPattern := regexp.MustCompile(`.*\.\./.*`)
 
-	checkFields := map[string]bool
+	checkFields := map[string]bool{}
 	for _, fieldName := range config.CheckFields {
-		checkFields[fieldName] := true
+		checkFields[fieldName] = true
 	}
 
-	return &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern}, nil
+	return &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern, checkFields: checkFields}, nil
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +57,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bodyBlocked := p.checkRequestBody(r)
 	if URLBlocked != nil || bodyBlocked != nil {
 		p.sendBlockMessage(w, r)
+		return
 		}
 	p.proxy.ServeHTTP(w, r)
 	fmt.Println("[ --> ] Request sent")
@@ -80,11 +83,12 @@ func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) checkRequestBody(r *http.Request) error {
+	fmt.Println(r)
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
 		return p.checkRequestForm(r)
 	}
-	if strings.Contains(contemtType, "multipart/form-data") {
+	if strings.Contains(contentType, "multipart/form-data") {
 		return p.checkRequestMultipartForm(r)
 	}
 	if strings.Contains(contentType, "application/json") {
@@ -93,14 +97,59 @@ func (p *Proxy) checkRequestBody(r *http.Request) error {
 	return nil
 	}
 
-func (p *Proxy) checkRe
+func (p *Proxy) checkRequestForm(r *http.Request) error {
+	if !p.config.CheckQuery {
+		return nil
+	}
+	
+	var bodyBuffer bytes.Buffer
+	bodyReader := io.TeeReader(r.Body, &bodyBuffer)
+	reqParse := &http.Request{
+		Method: r.Method,
+		Header: r.Header,
+		Body: io.NopCloser(bodyReader),
+	}
+
+	err := reqParse.ParseForm()
+	if (err != nil) {
+		return err
+	}
+	for field, values := range reqParse.PostForm {
+		for _, value := range values {
+			if p.fieldCheckNeeded(field) {
+				if p.LFIPattern.MatchString(value) {
+					return fmt.Errorf("LFI Pattern in form field detected")
+				}
+			}
+		}
+	}
+
+	r.Body = io.NopCloser(&bodyBuffer)
+	return nil
+}
+
+func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
+	return nil
+}
+
+func (p *Proxy) checkRequestJSON(r *http.Request) error {
+	return nil
+}
 
 func (p *Proxy) checkURL(req *http.Request) error {
+	if p.config.CheckURL {
+		if p.LFIPattern.MatchString(req.URL.String()) {
+			return fmt.Errorf("LFI Pattern in URL detected")
+		}
+	}
+	if !p.config.CheckQuery {
+		return nil
+	}
 	for key, values := range req.URL.Query() {
 		for _, value := range values {
-			if p.fieldChevkNeeded(key) {
+			if p.fieldCheckNeeded(key) {
 				if p.LFIPattern.MatchString(value) {
-					return fmt.Errorf("Pattern in query detected")
+					return fmt.Errorf("LFI Pattern in query detected")
 				}
 			}
 		}
