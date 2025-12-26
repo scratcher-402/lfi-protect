@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{% if note %}Редактировать{% else %}Создать{% endif %} заметку - ЗАМЕТКИ.ОНЛАЙН{% endblock %}
+
+{% block content %}
+<div class="note-edit">
+    <h2>{% if note %}Редактировать заметку{% else %}Новая заметка{% endif %}</h2>
+    
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="title">Название:</label>
+            <input type="text" id="title" name="title" 
+                   value="{{ note.title if note else '' }}" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="content">Содержание:</label>
+            <textarea id="content" name="content" rows="15">{{ note.content if note else '' }}</textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="files">Прикрепить файлы:</label>
+            <input type="file" id="files" name="files" multiple>
+            <small>Можно выбрать несколько файлов. Максимальный размер: 16MB</small>
+        </div>
+        
+        {% if note and files %}
+        <div class="existing-files">
+            <h4>Прикрепленные файлы:</h4>
+            <ul>
+                {% for file in files %}
+                <li>
+                    📎 {{ file.filename }}
+                    <a href="{{ url_for('delete_file', file_id=file.id) }}" 
+                       onclick="return confirm('Удалить этот файл?');"
+                       class="file-delete">🗑️</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                {% if note %}Сохранить{% else %}Создать{% endif %}
+            </button>
+            {% if note %}
+            <a href="{{ url_for('view_note', note_id=note.id) }}" class="btn btn-secondary">Отмена</a>
+            {% else %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Отмена</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

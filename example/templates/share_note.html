@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Поделиться заметкой - ЗАМЕТКИ.ОНЛАЙН{% endblock %}
+
+{% block content %}
+<div class="share-note">
+    <h2>Поделиться заметкой: {{ note.title }}</h2>
+    
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Логин пользователя:</label>
+            <input type="text" id="username" name="username" 
+                   placeholder="Введите логин пользователя" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Предоставить доступ</button>
+    </form>
+    
+    {% if shared_with %}
+    <div class="shared-list">
+        <h3>Доступ предоставлен:</h3>
+        <ul>
+            {% for user in shared_with %}
+            <li>
+                {{ user.username }}
+                <a href="{{ url_for('unshare_note', note_id=note.id, user_id=user.id) }}"
+                   onclick="return confirm('Отозвать доступ у {{ user.username }}?');"
+                   class="btn btn-small btn-danger">Отозвать</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <div class="form-actions">
+        <a href="{{ url_for('view_note', note_id=note.id) }}" class="btn btn-secondary">Назад к заметке</a>
+    </div>
+</div>
+{% endblock %}
