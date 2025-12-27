@@ -10,6 +10,7 @@ import (
 	"strings"
 	"bytes"
 	"io"
+	"encoding/json"
 	)
 
 type Proxy struct {
@@ -213,6 +214,63 @@ func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
 }
 
 func (p *Proxy) checkRequestJSON(r *http.Request) error {
+	if (!p.config.CheckJSON) {
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, int64(p.config.MaxReqBodySize)))
+	if err != nil {
+		return err
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+
+	var jsonData interface{}
+	err = decoder.Decode(&jsonData)
+	if err != nil {
+		return err
+	}
+	err = p.scanJSON(jsonData)
+	return err
+}
+
+func (p *Proxy) scanJSON(jsonData interface{}) error {
+	var err error
+	switch jsonData.(type) {
+		case map[string]interface{}:
+			for key, value := range jsonData.(map[string]interface{}) {
+				switch value.(type) {
+					case string:
+						if p.fieldCheckNeeded(key) {
+							if p.LFIPattern.MatchString(value.(string)) {
+								return fmt.Errorf("LFI pattern detected in JSON field")
+							}
+						}
+					default:
+						err = p.scanJSON(value)
+						if err != nil {
+							return err
+						}
+				}
+			}
+		case []interface{}:
+			for _, value := range jsonData.([]interface{}) {
+				err = p.scanJSON(value)
+				if err != nil {
+					return err
+				}
+			}
+		case string:
+			if p.fieldCheckNeeded("*") {
+				if p.LFIPattern.MatchString(jsonData.(string)) {
+					return fmt.Errorf("LFI pattern in JSON field detected")
+				}
+			}
+		case json.Number:
+			break
+		case bool, nil:
+			break
+	}
 	return nil
 }
 
