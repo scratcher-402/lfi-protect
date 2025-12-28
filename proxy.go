@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"io"
 	"encoding/json"
+	"time"
 	)
 
 type Proxy struct {
@@ -81,36 +82,44 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
-	html := `<!DOCTYPE html>
-			 <html lang="en">
-			 <head>
-			 	<title>Request blocked due to security reasons</title>
-			 </head>
-			 <body>
-			 	<h1>Request blocked due to security policy</h1>
-			 	Scr-LFI-Protect
-			 </body>
-			 </html>`
+	html := fmt.Sprintf(`<!DOCTYPE html>
+			 			<html lang="en">
+			 			<head>
+			 				<title>Access Denied</title>
+						</head>
+						<body>
+			 				<h1>Access Denied</h1>
+			 				<p>Your request has been blocked by our security system.</p>
+			 				<p>If you believe this is an error, please contact support.</p>
+			 				Time: %s
+			 				Scr-LFI-Protect
+			 			</body>
+			 			</html>`, timeString)
 	w.Write([]byte(html))
 	fmt.Println("[ -X  ] Request blocked")
 }
 
 func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
-	w.WriteHeader(http.StatusBadGateway)
-	html := `<!DOCTYPE html>
-			 <html lang="en">
-			 <head>
-			 	<title>Request processing error</title>
-			 </head>
-			 <body>
-			 	<h1>Request processing error</h1>
-			 	Scr-LFI-Protect
-			 </body>
-			 </html>`
+	w.WriteHeader(http.StatusInternalServerError)
+	html := fmt.Sprintf(`<!DOCTYPE html>
+			 			 <html lang="en">
+			 			 <head>
+			 			 	<title>Internal Server Error</title>
+			 			 </head>
+			 			 <body>
+			 			 	<h1>Internal Server Error</h1>
+			 			 	<p>An unexpected error occured while processing your request.</p>
+			 			 	<p>Please try again later or contact support if the problem persists.</p>
+			 			 	Time: %s
+			 			 	Scr-LFI-Protect
+			 			 </body>
+			 			 </html>`, timeString)
 	w.Write([]byte(html))
 	fmt.Println("[  !  ] Request processing error")
 }
