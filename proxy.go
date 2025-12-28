@@ -23,7 +23,7 @@ type Proxy struct {
 }
 
 
-func NewProxy(config *ProxyConfig) (*Proxy, error) {
+func NewProxy(config *ProxyConfig, trie *Trie) (*Proxy, error) {
 	base, err := url.Parse(config.ServerAddr)
 	if (err != nil) {
 		return nil, err
@@ -49,6 +49,34 @@ func NewProxy(config *ProxyConfig) (*Proxy, error) {
 	checkFields := map[string]bool{}
 	for _, fieldName := range config.CheckFields {
 		checkFields[fieldName] = true
+	}
+
+	originalModifyResponse := proxy.ModifyResponse
+	proxy.ModifyResponse = func (resp *http.Response) error {
+		if originalModifyResponse != nil {
+			err := originalModifyResponse(resp)
+			if err != nil {
+				return err
+			}
+		}
+		if config.CheckFileLeaks {
+			fmt.Println("Analyzing response")
+			var bodyBuffer bytes.Buffer	
+			bodyReader := io.TeeReader(resp.Body, &bodyBuffer)
+			body, err := io.ReadAll(bodyReader)
+			if err != nil {
+				resp.Body = io.NopCloser(&bodyBuffer)
+				return err
+			}
+			fmt.Println("Body read")
+			err = trie.AnalyzeBytes(&body)
+			if err != nil {
+				return err
+			}
+			fmt.Println("Body analyzed")
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		return nil
 	}
 
 	return &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern, checkFields: checkFields}, nil
@@ -126,7 +154,6 @@ func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
 
 
 func (p *Proxy) checkRequestBody(r *http.Request) error {
-	fmt.Println(r)
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
 		return p.checkRequestForm(r)

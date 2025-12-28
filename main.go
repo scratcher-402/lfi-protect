@@ -21,6 +21,7 @@ type ProxyConfig struct {
 	CheckJSON bool `yaml:"check-json"`
 	CheckAllFields bool `yaml:"check-all-fields"`
 	CheckFields []string `yaml:"check-fields"`
+	CheckFileLeaks bool `yaml:"check-file-leaks"`
 }
 type FilesConfig struct {
 	Paths []string `yaml:"paths"`
@@ -58,7 +59,7 @@ func main() {
 	}
 	fmt.Println("Проксируем:", config.Proxy.ServerAddr)
 	fmt.Println("Прокси работает на", config.Proxy.ListenAddr)
-	proxy, err := NewProxy(&config.Proxy)
+	proxy, err := NewProxy(&config.Proxy, trie)
 	if (err != nil) {
 		fmt.Println("Ошибка создания прокси")
 		return

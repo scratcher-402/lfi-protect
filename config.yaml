@@ -6,6 +6,7 @@ proxy:
     check-query: true
     check-filenames: true
     check-json: true
+    check-file-leaks: true
     check-all-fields: true
     check-fields: [] # use when check-all-fields is false
 files:
@@ -13,3 +14,5 @@ files:
         - .
     exclude:
         - example/files
+        - example/templates
+        - example/static
