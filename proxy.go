@@ -10,6 +10,8 @@ import (
 	"strings"
 	"bytes"
 	"io"
+	"encoding/json"
+	"time"
 	)
 
 type Proxy struct {
@@ -53,34 +55,75 @@ func NewProxy(config *ProxyConfig) (*Proxy, error) {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	URLBlocked := p.checkURL(r)
-	bodyBlocked := p.checkRequestBody(r)
-	if URLBlocked != nil || bodyBlocked != nil {
-		p.sendBlockMessage(w, r)
-		return
+	err := p.checkURL(r)
+	if err != nil {
+		if strings.Contains(err.Error(), "LFI") {
+			p.sendBlockMessage(w, r)
+			return
+		} else {
+			fmt.Println(err)
+			p.sendErrorMessage(w, r)
+			return
 		}
+	}
+	err = p.checkRequestBody(r)
+	if err != nil {
+		if strings.Contains(err.Error(), "LFI") {
+			p.sendBlockMessage(w, r)
+			return
+		} else {
+			fmt.Println(err)
+			p.sendErrorMessage(w, r)
+			return
+		}
+	}
 	p.proxy.ServeHTTP(w, r)
 	fmt.Println("[ --> ] Request sent")
 }
 
 func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
-	html := `<!DOCTYPE html>
-			 <html lang="en">
-			 <head>
-			 	<title>Request blocked due to security reasons</title>
-			 </head>
-			 <body>
-			 	<h1>Request blocked due to security policy</h1>
-			 	Scr-LFI-Protect
-			 </body>
-			 </html>`
+	html := fmt.Sprintf(`<!DOCTYPE html>
+			 			<html lang="en">
+			 			<head>
+			 				<title>Access Denied</title>
+						</head>
+						<body>
+			 				<h1>Access Denied</h1>
+			 				<p>Your request has been blocked by our security system.</p>
+			 				<p>If you believe this is an error, please contact support.</p>
+			 				Time: %s
+			 				Scr-LFI-Protect
+			 			</body>
+			 			</html>`, timeString)
 	w.Write([]byte(html))
 	fmt.Println("[ -X  ] Request blocked")
-	return
 }
+
+func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
+	w.Header().Set("Content-Type", "text/html; charset: utf-8")
+	w.WriteHeader(http.StatusInternalServerError)
+	html := fmt.Sprintf(`<!DOCTYPE html>
+			 			 <html lang="en">
+			 			 <head>
+			 			 	<title>Internal Server Error</title>
+			 			 </head>
+			 			 <body>
+			 			 	<h1>Internal Server Error</h1>
+			 			 	<p>An unexpected error occured while processing your request.</p>
+			 			 	<p>Please try again later or contact support if the problem persists.</p>
+			 			 	Time: %s
+			 			 	Scr-LFI-Protect
+			 			 </body>
+			 			 </html>`, timeString)
+	w.Write([]byte(html))
+	fmt.Println("[  !  ] Request processing error")
+}
+
 
 func (p *Proxy) checkRequestBody(r *http.Request) error {
 	fmt.Println(r)
@@ -129,10 +172,114 @@ func (p *Proxy) checkRequestForm(r *http.Request) error {
 }
 
 func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
+	if !p.config.CheckQuery && !p.config.CheckFilenames {
+		return nil
+	}
+
+	var bodyBuffer bytes.Buffer
+	bodyReader := io.TeeReader(r.Body, &bodyBuffer)
+	reqParse := &http.Request{
+		Method: r.Method,
+		Header: r.Header,
+		Body: io.NopCloser(bodyReader),
+	}
+
+	reader, err := reqParse.MultipartReader()
+	if err != nil {
+		return err
+	}
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		field := part.FormName()
+		fileName := part.FileName()
+
+		if fileName != "" {
+			if p.LFIPattern.MatchString(fileName) {
+				return fmt.Errorf("LFI pattern in filename detected")
+			}
+		} else {
+			if p.fieldCheckNeeded(field) {
+				value, err := io.ReadAll(part)
+				if err != nil {
+					return err
+				}
+				if p.LFIPattern.Match(value) {
+					return fmt.Errorf("LFI pattern in form field detected")
+				}
+			}
+		}
+	}
+
+	r.Body = io.NopCloser(&bodyBuffer)
 	return nil
 }
 
 func (p *Proxy) checkRequestJSON(r *http.Request) error {
+	if (!p.config.CheckJSON) {
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, int64(p.config.MaxReqBodySize)))
+	if err != nil {
+		return err
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+
+	var jsonData interface{}
+	err = decoder.Decode(&jsonData)
+	if err != nil {
+		return err
+	}
+	err = p.scanJSON(jsonData)
+	return err
+}
+
+func (p *Proxy) scanJSON(jsonData interface{}) error {
+	var err error
+	switch jsonData.(type) {
+		case map[string]interface{}:
+			for key, value := range jsonData.(map[string]interface{}) {
+				switch value.(type) {
+					case string:
+						if p.fieldCheckNeeded(key) {
+							if p.LFIPattern.MatchString(value.(string)) {
+								return fmt.Errorf("LFI pattern detected in JSON field")
+							}
+						}
+					default:
+						err = p.scanJSON(value)
+						if err != nil {
+							return err
+						}
+				}
+			}
+		case []interface{}:
+			for _, value := range jsonData.([]interface{}) {
+				err = p.scanJSON(value)
+				if err != nil {
+					return err
+				}
+			}
+		case string:
+			if p.fieldCheckNeeded("*") {
+				if p.LFIPattern.MatchString(jsonData.(string)) {
+					return fmt.Errorf("LFI pattern in JSON field detected")
+				}
+			}
+		case json.Number:
+			break
+		case bool, nil:
+			break
+	}
 	return nil
 }
 

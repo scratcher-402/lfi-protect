@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Proxy ProxyConfig `yaml:"proxy"`
+	Files FilesConfig `yaml:"files"`
 }
 type ProxyConfig struct {
 	ListenAddr string `yaml:"listen"`
@@ -21,19 +22,25 @@ type ProxyConfig struct {
 	CheckAllFields bool `yaml:"check-all-fields"`
 	CheckFields []string `yaml:"check-fields"`
 }
+type FilesConfig struct {
+	Paths []string `yaml:"paths"`
+	Exclude []string `yaml:"exclude"`
+}
 
 func main() {
 	configFile, err := os.ReadFile("config.yaml")
 	if (err != nil) {
-		fmt.Println("Ошибка чтения конфига", err)
+		fmt.Println("Config reading error:", err)
 		return
 	}
 	var config Config
 	err = yaml.Unmarshal(configFile, &config)
 	if (err != nil) {
-		fmt.Println("Ошибка парсинга", err)
+		fmt.Println("Config parsing error:", err)
 	}
 	fmt.Println("Scr-LFI-Protect")
+	trie := NewTrie(&config.Files)
+	trie.Setup()
 	fmt.Println("Проксируем:", config.Proxy.ServerAddr)
 	fmt.Println("Прокси работает на", config.Proxy.ListenAddr)
 	proxy, err := NewProxy(&config.Proxy)

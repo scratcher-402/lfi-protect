@@ -371,6 +371,10 @@ def download_file():
     print(file_path)
     return send_from_directory(".", file_path, as_attachment=True, download_name=filename)
 
+@app.route("/benchmark", methods=["POST"])
+def benchmark():
+    return f"{request.args.get('data')}"
+
 # Инициализация
 with app.app_context():
     db.create_all()
