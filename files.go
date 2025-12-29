@@ -5,6 +5,8 @@ import (
 	"slices"
 	"io"
 	"fmt"
+	"sync"
+	"bytes"
 )
 
 type TrieNode struct {
@@ -21,6 +23,7 @@ type Trie struct {
 	Files []string
 	Config *FilesConfig
 	Walker *TrieWalker
+	Mutex sync.RWMutex
 }
 
 type TrieWalker struct {
@@ -53,12 +56,14 @@ func NewWalkerFromTrie(t *Trie) *TrieWalker {
 func (tw *TrieWalker) Go(index int) {
 	next := tw.Current.To[index]
 	if next == nil {
+		// fmt.Println("[trie walker] no way, returning home")
 		tw.Home()
 		return
 	}
 	tw.Parent = tw.Current
 	tw.Current = next
 	tw.Depth++
+	// fmt.Printf("Moved by index %d to depth %d\n", index, tw.Depth)
 }
 func (tw *TrieWalker) Push(index int) {
 	next := tw.Current.To[index]
@@ -75,6 +80,7 @@ func (tw *TrieWalker) Home() {
 	tw.Parent = nil
 	tw.Depth = 0
 }
+
 func (tw *TrieWalker) AddTermFile(path string) {
 	term := tw.Current.Term
 	if term == nil {
@@ -170,6 +176,63 @@ func (t *Trie) addFile (path string) error {
 	}
 	return nil
 }
+func (t *Trie) AnalyzeBytes(data *[]byte) error {
+	result := make(chan error, 16)
+	for shift := 0; shift < 16; shift++ {
+		go t.analyzeBytesWithShift(data, shift, result)
+	}
+	count := 0
+	var shiftResult error
+	for {
+		shiftResult = <-result
+		if shiftResult != nil {
+			return shiftResult
+		}
+		count++
+		if count == 16 {
+			break
+		}
+	}
+	return nil
+}
+func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error) {
+	fmt.Println("Analyzing bytes with shift", shift)
+	t.Mutex.RLock()
+	defer t.Mutex.RUnlock()
+	walker := NewWalkerFromTrie(t)
+	reader := bytes.NewReader(*data)
+	reader.Seek(int64(shift), io.SeekCurrent)
+	block := make([]byte, 16)
+	var blockHash int
+	var n int
+	var err error
+	var offset int
+	for {
+		n, err = reader.Read(block)
+		if err == io.EOF {
+			err = nil
+			break
+		}
+		if err != nil {
+			break
+		}
+		offset += n
+		if n == 16 {
+			blockHash = smallBlockHash(block)
+			walker.Go(blockHash)
+			if walker.Depth >= 9 {
+				fmt.Printf("File leak detected with shift %d\n", shift)
+				err = fmt.Errorf("LFI file leak detected with shift %d, depth %d, offset %d", shift, walker.Depth, offset)
+				break
+			}
+		} else {
+			err = nil
+			break
+		}
+	}
+	fmt.Println("Analysis finished with shift", shift)
+	result <- err
+}
 
 func smallBlockHash(data []byte) int {
 	mult := 1
@@ -180,3 +243,4 @@ func smallBlockHash(data []byte) int {
 	}
 	return result
 }
+ 

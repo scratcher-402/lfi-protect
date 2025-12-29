@@ -3,9 +3,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-
+	"path/filepath"
 	"gopkg.in/yaml.v3"
-		)
+	)
 
 type Config struct {
 	Proxy ProxyConfig `yaml:"proxy"`
@@ -21,6 +21,7 @@ type ProxyConfig struct {
 	CheckJSON bool `yaml:"check-json"`
 	CheckAllFields bool `yaml:"check-all-fields"`
 	CheckFields []string `yaml:"check-fields"`
+	CheckFileLeaks bool `yaml:"check-file-leaks"`
 }
 type FilesConfig struct {
 	Paths []string `yaml:"paths"`
@@ -39,15 +40,29 @@ func main() {
 		fmt.Println("Config parsing error:", err)
 	}
 	fmt.Println("Scr-LFI-Protect")
+	for _, path := range config.Files.Paths {
+		path, err = filepath.Abs(path)
+		if err != nil {
+			fmt.Println("Path error", err)
+		}
+	}
+	for _, path := range config.Files.Exclude {
+		path, err = filepath.Abs(path)
+		if err != nil {
+			fmt.Println("Path error", err)
+		}
+	}
 	trie := NewTrie(&config.Files)
-	trie.Setup()
-	fmt.Println("Проксируем:", config.Proxy.ServerAddr)
-	fmt.Println("Прокси работает на", config.Proxy.ListenAddr)
-	proxy, err := NewProxy(&config.Proxy)
+	err = trie.Setup()
+	if err != nil {
+		fmt.Println("Trie building error:", err)
+	}
+	fmt.Println("Target URL:", config.Proxy.ServerAddr)
+	fmt.Println("Listening:", config.Proxy.ListenAddr)
+	proxy, err := NewProxy(&config.Proxy, trie)
 	if (err != nil) {
-		fmt.Println("Ошибка создания прокси")
+		fmt.Println("Proxy creating error:", err)
 		return
 	}
-	fmt.Println(config)
 	http.ListenAndServe(config.Proxy.ListenAddr, proxy)
 	}
