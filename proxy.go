@@ -40,7 +40,16 @@ func NewProxy(config *ProxyConfig, trie *Trie) (*Proxy, error) {
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		w.WriteHeader(http.StatusBadGateway)
+		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
+			w.Header().Set("Content-Type", "text/html; charset: utf-8")
+			w.Header().Set("X-Blocked", "true")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write(RenderBlockMessage())
+		} else {
+			w.Header().Set("Content-Type", "text/html; charset: utf-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write(RenderErrorMessage())
+		}
 		fmt.Printf("[  !  ] Proxy error: %v\n", err)
 	}
 
@@ -110,48 +119,50 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
-	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
-	html := fmt.Sprintf(`<!DOCTYPE html>
-			 			<html lang="en">
-			 			<head>
-			 				<title>Access Denied</title>
-						</head>
-						<body>
-			 				<h1>Access Denied</h1>
-			 				<p>Your request has been blocked by our security system.</p>
-			 				<p>If you believe this is an error, please contact support.</p>
-			 				Time: %s
-			 				Scr-LFI-Protect
-			 			</body>
-			 			</html>`, timeString)
-	w.Write([]byte(html))
+	w.Write(RenderBlockMessage())
 	fmt.Println("[ -X  ] Request blocked")
 }
-
-func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+func RenderBlockMessage() []byte {
 	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
+	return []byte(fmt.Sprintf(`<!DOCTYPE html>
+				 			  <html lang="en">
+				 			  <head>
+				 			  	<title>Access Denied</title>
+							  </head>
+							  <body>
+				 			   	<h1>Access Denied</h1>
+				 				<p>Your request has been blocked by our security system.</p>
+				 				<p>If you believe this is an error, please contact support.</p>
+				 				Time: %s<br>
+				 				Scr-LFI-Protect
+				 			  </body>
+				 			  </html>`, timeString))
+}
+func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
-	html := fmt.Sprintf(`<!DOCTYPE html>
-			 			 <html lang="en">
-			 			 <head>
-			 			 	<title>Internal Server Error</title>
-			 			 </head>
-			 			 <body>
-			 			 	<h1>Internal Server Error</h1>
-			 			 	<p>An unexpected error occured while processing your request.</p>
-			 			 	<p>Please try again later or contact support if the problem persists.</p>
-			 			 	Time: %s
-			 			 	Scr-LFI-Protect
-			 			 </body>
-			 			 </html>`, timeString)
-	w.Write([]byte(html))
+	w.Write(RenderErrorMessage())
 	fmt.Println("[  !  ] Request processing error")
 }
-
+func RenderErrorMessage() []byte {
+	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
+	return []byte(fmt.Sprintf(`<!DOCTYPE html>
+				 			   <html lang="en">
+				 			   <head>
+				 			 	 <title>Internal Server Error</title>
+				 			   </head>
+				 			   <body>
+				 			 	 <h1>Internal Server Error</h1>
+				 			 	 <p>An unexpected error occured while processing your request.</p>
+				 			 	 <p>Please try again later or contact support if the problem persists.</p>
+				 			 	 Time: %s<br>
+				 			 	 Scr-LFI-Protect
+				 		       </body>
+				 			   </html>`, timeString))
+}
 
 func (p *Proxy) checkRequestBody(r *http.Request) error {
 	contentType := r.Header.Get("Content-Type")

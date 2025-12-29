@@ -57,13 +57,12 @@ func main() {
 	if err != nil {
 		fmt.Println("Trie building error:", err)
 	}
-	fmt.Println("Проксируем:", config.Proxy.ServerAddr)
-	fmt.Println("Прокси работает на", config.Proxy.ListenAddr)
+	fmt.Println("Target URL:", config.Proxy.ServerAddr)
+	fmt.Println("Listening:", config.Proxy.ListenAddr)
 	proxy, err := NewProxy(&config.Proxy, trie)
 	if (err != nil) {
-		fmt.Println("Ошибка создания прокси")
+		fmt.Println("Proxy creating error:", err)
 		return
 	}
-	fmt.Println(config)
 	http.ListenAndServe(config.Proxy.ListenAddr, proxy)
 	}
