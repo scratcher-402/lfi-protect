@@ -32,6 +32,8 @@ files:
         - example/files
         - example/templates
         - example/static
+logs:
+	logs-path: logs
 ```
 ### Configuration options
 - `proxy.listen` - Reverse proxy lustening address
@@ -46,3 +48,5 @@ files:
 
 - `files.paths` - List of sensitive files or directories to protect
 - `files.exclude` - Files, directories or patterns to exclude from monitoring
+
+- `logs.logs-path` - Directory to save logs

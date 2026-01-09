@@ -26,7 +26,7 @@ type Logger struct {
 
 func NewLogger(config *LogsConfig) (*Logger, error) {
 	logsDir := config.LogsPath
-	err := os.MkdirAll(logsDir, 0644)
+	err := os.MkdirAll(logsDir, 0755)
 	if (err != nil) {
 		return nil, fmt.Errorf("Logs path creating error: %w", err)
 	}

@@ -44,7 +44,7 @@ jobs:
     - name: Wait for Go application initialization
       run: |
         echo "Waiting 10 seconds for Go application to initialize..."
-        sleep 10
+        sleep 20
         echo "Checking if Go application is running..."
         if ps -p $(cat go_app.pid) > /dev/null; then
           echo "Go application is running"
