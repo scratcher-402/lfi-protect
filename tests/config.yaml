@@ -18,3 +18,5 @@ files:
         - example/static
 logs:
     logs-path: logs
+admin:
+    enabled: false

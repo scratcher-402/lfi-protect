@@ -28,6 +28,7 @@ type Trie struct {
 }
 
 type TrieWalker struct {
+	Trie *Trie
 	Root *TrieNode
 	Current *TrieNode
 	Parent *TrieNode
@@ -44,14 +45,16 @@ func NewNode() *TrieNode {
 
 func NewTrie(config *FilesConfig, logger *Logger) *Trie {
 	root := NewNode()
-	return &Trie{Root: root, Files: []string{}, Config: config, Walker: NewWalker(root), Logger: logger}
+	trie := &Trie{Root: root, Files: []string{}, Config: config, Logger: logger}
+	trie.Walker = NewWalkerFromTrie(trie)
+	return trie
 }
 
 func NewWalker(root *TrieNode) *TrieWalker {
 	return &TrieWalker{Root: root, Current: root}
 }
 func NewWalkerFromTrie(t *Trie) *TrieWalker {
-	return &TrieWalker{Root: t.Root, Current: t.Root}
+	return &TrieWalker{Root: t.Root, Current: t.Root, Trie: t}
 }
 
 func (tw *TrieWalker) Go(index int) {
@@ -91,6 +94,11 @@ func (tw *TrieWalker) AddTermFile(path string) {
 	if !slices.Contains(term.Files, path) {
 		term.Files = append(term.Files, path)
 	}
+	if tw.Trie != nil {
+		if !slices.Contains(tw.Trie.Files, path) {
+			tw.Trie.Files = append(tw.Trie.Files, path)
+		}
+	}
 }
 
 func (t *Trie) Setup() error {
@@ -102,10 +110,10 @@ func (t *Trie) Setup() error {
 			return err
 		}
 	}
+	t.Logger.Event(LOG_INFO, "trie", fmt.Sprintf("Trie built successfully, %d files added", len(t.Files)))
 	return err
 }
 func (t *Trie) addFile (path string) error {
-	t.Logger.Event(LOG_DEBUG, "trie", "Adding file "+path)
 	check := true
 	for _, pattern := range t.Config.Exclude {
 		match, err := filepath.Match(pattern, path)
@@ -174,7 +182,7 @@ func (t *Trie) addFile (path string) error {
 			}
 		}
 		tw.AddTermFile(path)
-		t.Logger.Event(LOG_INFO, "trie", fmt.Sprintf("Added %s, %d blocks\n", path, tw.Depth))
+		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Added %s, %d blocks\n", path, tw.Depth))
 	}
 	return nil
 }

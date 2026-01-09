@@ -11,6 +11,7 @@ type Config struct {
 	Proxy ProxyConfig `yaml:"proxy"`
 	Files FilesConfig `yaml:"files"`
 	Logs LogsConfig `yaml:"logs"`
+	Admin AdminConfig `yaml:"admin"`
 }
 type ProxyConfig struct {
 	ListenAddr string `yaml:"listen"`
@@ -30,6 +31,12 @@ type FilesConfig struct {
 }
 type LogsConfig struct {
 	LogsPath string `yaml:"logs-path"`
+}
+type AdminConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Listen string `yaml:"listen"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 func main() {
@@ -75,5 +82,10 @@ func main() {
 		fmt.Println("Proxy creating error:", err)
 		return
 	}
+	app, err := NewApp(&config.Admin, logger, trie, proxy)
+	if (err != nil) {
+		fmt.Println("Admin app creating error")
+	}
+	go app.Run()
 	http.ListenAndServe(config.Proxy.ListenAddr, proxy)
 	}

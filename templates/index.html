@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scr-LFI-Protect</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Scr-LFI-Protect</h1>
+            <div class="user-menu">
+                <span class="user-info">{{.Username}}</span>
+                <a href="/logout" class="btn-logout">Log out</a>
+            </div>
+        </div>
+    </header>
+    
+    <nav>
+        <ul>
+            <li><a href="/" class="active">Dashboard</a></li>
+			<li><a href="/logs">Logs</a></li>
+			<li><a href="/config">Config</a></li>
+        </ul>
+    </nav>
+    
+    <main>
+        <div class="container">
+			<div class="sidebar">
+				<div class="card">
+					<h3>Stats</h3>
+					<p><strong>Files in trie: </strong>{{.FilesInTrie}}</p>
+					<p><strong>Requests handled: </strong>{{.RequestsHandled}}</p>
+					<p><strong>Requests blocked: </strong>{{.RequestsBlocked}}</p>
+				</div>
+			</div>
+		</div>
+    </main>
+    
+    <footer>
+        <p>Admin panel | Scr-LFI-Protect</p>
+    </footer>
+</body>
+</html>
