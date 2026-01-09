@@ -37,7 +37,7 @@ jobs:
     - name: Copy config.yaml
       run: |
         # Копируем конфиг
-        cp test/config.yaml config.yaml
+        cp tests/config.yaml config.yaml
 
     - name: Run Go application in background
       run: |
