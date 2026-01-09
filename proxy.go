@@ -43,7 +43,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 		go logger.Event(LOG_DEBUG, "proxy", fmt.Sprintf("Received request %s %s", req.Method, req.URL.Path))
 	}
 
-	LFIPattern := regexp.MustCompile(`.*\.\./.*`)
+	LFIPattern := regexp.MustCompile(`\.\.(/|\\)`)
 
 	checkFields := map[string]bool{}
 	for _, fieldName := range config.CheckFields {
@@ -79,7 +79,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 		return nil
 	}
 
-	proxyObj :=  &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern, checkFields: checkFields}
+	proxyObj :=  &Proxy{config: config, LFIPattern: LFIPattern, checkFields: checkFields, logger: logger}
 	
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
@@ -97,6 +97,8 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 		}
 		fmt.Printf("[  !  ] Proxy error: %v\n", err)
 	}
+	
+	proxyObj.proxy = proxy
 	
 	return proxyObj, nil
 }
@@ -130,6 +132,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+	p.logger.ProxyError(r, true, fmt.Errorf("Request blocked"))
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
@@ -153,6 +156,7 @@ func RenderBlockMessage() []byte {
 				 			  </html>`, timeString))
 }
 func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+	p.logger.ProxyError(r, false, fmt.Errorf("Internal error"))
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write(RenderErrorMessage())

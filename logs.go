@@ -22,6 +22,7 @@ type Logger struct {
 	accessLogFile *os.File
 	errorLogFile *os.File
 	infoJsonlFile *os.File
+	infoJsonlPath string
 	}
 
 func NewLogger(config *LogsConfig) (*Logger, error) {
@@ -45,7 +46,8 @@ func NewLogger(config *LogsConfig) (*Logger, error) {
 	return &Logger{config: config,
 				   accessLogFile: accessLogFile,
 				   errorLogFile: errorLogFile,
-				   infoJsonlFile: infoJsonlFile}, nil
+				   infoJsonlFile: infoJsonlFile,
+				   infoJsonlPath: filepath.Join(logsDir, "info.jsonl")}, nil
 }
 
 type LogEvent struct {
@@ -115,6 +117,7 @@ func (logger *Logger) ProxyError(r *http.Request, blocked bool, err error) {
 	}
 	timeNow := time.Now()
 	logger.Event(LOG_ERROR, "proxy", message)
+	fmt.Println("proxy error")
 	timeString := timeNow.Format(time.RFC1123)
 	errorLogMessage := fmt.Sprintf("[%s] %s\n", timeString, message)
 	_, err = logger.errorLogFile.Write([]byte(errorLogMessage))

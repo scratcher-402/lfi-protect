@@ -133,7 +133,7 @@ func (t *Trie) addFile (path string) error {
 		return err
 	}
 	if info.IsDir() {
-		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
+//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return err
@@ -150,10 +150,10 @@ func (t *Trie) addFile (path string) error {
 			}
 		}
 	} else {
-		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a file")
+//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a file")
 		size := int(info.Size())
 		if size < 160 {
-			t.Logger.Event(LOG_INFO, "trie", fmt.Sprintf("Ignoring %s, too small (%d bytes)\n", path, size))
+			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Ignoring %s, too small (%d bytes)\n", path, size))
 			return nil
 		}
 		file, err := os.Open(path)

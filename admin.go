@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 	"context"
+	"strconv"
+	"os"
+	"bufio"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -229,9 +232,7 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		
-		data := map[string]interface{}{
-			"Title": "Вход в систему",
-		}
+		data := map[string]interface{}{}
 		app.Templates.ExecuteTemplate(w, "login.html", data)
 		return
 	}
@@ -300,6 +301,280 @@ func (app *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Структура лога (уже должна быть)
+type LogEntry struct {
+	Level    int    `json:"Level"`
+	Message  string `json:"Message"`
+	UnixTime int64  `json:"UnixTime"`
+	Category string `json:"Category"`
+}
+
+// Структура ответа API логов
+type LogsResponse struct {
+	Logs      []LogEntry `json:"logs"`
+	Total     int        `json:"total"`      // Всего логов в файле
+	Filtered  int        `json:"filtered"`   // Сколько подошло под фильтр
+	Returned  int        `json:"returned"`   // Сколько вернули (≤ limit)
+	Timestamp int64      `json:"timestamp"`  // Время генерации ответа
+}
+
+// Обработчик для /api/logs
+func (app *App) apiLogsHandler(w http.ResponseWriter, r *http.Request) {
+	// Парсим параметры
+	priorityParam := r.URL.Query().Get("priority")
+	limitParam := r.URL.Query().Get("limit")
+	
+	// Значения по умолчанию
+	priority := 0  // По умолчанию все логи (Level ≥ 0)
+	limit := 100   // По умолчанию 100 последних сообщений
+	
+	// Парсим приоритет
+	if priorityParam != "" {
+		if p, err := strconv.Atoi(priorityParam); err == nil && p >= 0 && p <= 4 {
+			priority = p
+		}
+	}
+	
+	// Парсим лимит
+	if limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			if l > 1000 {
+				l = 1000  // Максимальный лимит
+			}
+			limit = l
+		}
+	}
+	
+	// Читаем логи из файла
+	allLogs, err := app.readLogsFromFile()
+	if err != nil {
+		app.JSONError(w, "Failed to read logs: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Фильтруем логи по приоритету (Level ≥ priority)
+	filteredLogs := make([]LogEntry, 0)
+	for _, log := range allLogs {
+		if log.Level >= priority {
+			filteredLogs = append(filteredLogs, log)
+		}
+	}
+	
+	// Берём последние limit сообщений (или все, если меньше limit)
+	start := 0
+	if len(filteredLogs) > limit {
+		start = len(filteredLogs) - limit
+	}
+	
+	resultLogs := filteredLogs[start:]
+	
+	// Формируем ответ
+	response := LogsResponse{
+		Logs:      resultLogs,
+		Total:     len(allLogs),
+		Filtered:  len(filteredLogs),
+		Returned:  len(resultLogs),
+		Timestamp: time.Now().Unix(),
+	}
+	
+	app.JSONResponse(w, response, http.StatusOK)
+}
+
+// Функция чтения логов из файла (возвращает в хронологическом порядке, новые - в конце)
+func (app *App) readLogsFromFile() ([]LogEntry, error) {
+	file, err := os.Open(app.Logger.infoJsonlPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	
+	logs := make([]LogEntry, 0)
+	
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		var log LogEntry
+		line := scanner.Bytes()
+		
+		if err := json.Unmarshal(line, &log); err != nil {
+			continue
+		}
+		
+		logs = append(logs, log)
+	}
+	
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	
+	// Файл уже должен быть в хронологическом порядке (старые - в начале, новые - в конце)
+	// Если это не так, раскомментируйте сортировку ниже:
+	
+	/*
+	// Сортируем по времени (старые - в начале, новые - в конце)
+	sort.Slice(logs, func(i, j int) bool {
+		return logs[i].UnixTime < logs[j].UnixTime
+	})
+	*/
+	
+	return logs, nil
+}
+
+// Альтернативная версия с более эффективной обработкой (читает файл с конца)
+func (app *App) readLastLogs(priority, limit int) ([]LogEntry, int, int, error) {
+	file, err := os.Open(app.Logger.infoJsonlPath)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer file.Close()
+	
+	// Получаем размер файла для чтения с конца
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	fileSize := fileInfo.Size()
+	
+	// Собираем логи с конца файла
+	result := make([]LogEntry, 0)
+	totalLines := 0
+	matchedLines := 0
+	
+	const bufferSize = 64 * 1024 // 64KB
+	buffer := make([]byte, bufferSize)
+	remaining := fileSize
+	
+	// Читаем с конца файла
+	for remaining > 0 && len(result) < limit {
+		// Определяем размер следующего блока для чтения
+		readSize := bufferSize
+		if remaining < int64(readSize) {
+			readSize = int(remaining)
+		}
+		
+		// Смещаемся и читаем блок
+		start := remaining - int64(readSize)
+		_, err := file.Seek(start, 0)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		
+		n, err := file.Read(buffer[:readSize])
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		
+		// Обрабатываем блок с конца
+		for i := n - 1; i >= 0; i-- {
+			if buffer[i] == '\n' {
+				// Нашли конец строки, обрабатываем предыдущую строку
+				if i+1 < n {
+					line := buffer[i+1:n]
+					if len(line) > 0 {
+						totalLines++
+						var log LogEntry
+						if json.Unmarshal(line, &log) == nil {
+							if log.Level >= priority {
+								matchedLines++
+								if len(result) < limit {
+									// Добавляем в начало, так как читаем с конца
+									result = append([]LogEntry{log}, result...)
+								}
+							}
+						}
+					}
+				}
+				n = i
+			}
+		}
+		
+		// Обрабатываем первую строку в блоке (может быть обрезанной)
+		if n > 0 {
+			line := buffer[:n]
+			if len(line) > 0 {
+				totalLines++
+				var log LogEntry
+				if json.Unmarshal(line, &log) == nil {
+					if log.Level >= priority {
+						matchedLines++
+						if len(result) < limit {
+							result = append([]LogEntry{log}, result...)
+						}
+					}
+				}
+			}
+		}
+		
+		remaining -= int64(readSize)
+	}
+	
+	// Если файл маленький и мы всё прочитали, получаем общее количество
+	if remaining <= 0 {
+		// Читаем файл сначала для подсчёта общего количества
+		file.Seek(0, 0)
+		scanner := bufio.NewScanner(file)
+		totalLines = 0
+		matchedLines = 0
+		for scanner.Scan() {
+			totalLines++
+			var log LogEntry
+			if json.Unmarshal(scanner.Bytes(), &log) == nil && log.Level >= priority {
+				matchedLines++
+			}
+		}
+	}
+	
+	return result, totalLines, matchedLines, nil
+}
+
+// Оптимизированный обработчик (использует чтение с конца файла)
+func (app *App) apiLogsOptimizedHandler(w http.ResponseWriter, r *http.Request) {
+	// Парсим параметры
+	priorityParam := r.URL.Query().Get("priority")
+	limitParam := r.URL.Query().Get("limit")
+	
+	// Значения по умолчанию
+	priority := 0
+	limit := 100
+	
+	// Парсим приоритет
+	if priorityParam != "" {
+		if p, err := strconv.Atoi(priorityParam); err == nil && p >= 0 && p <= 4 {
+			priority = p
+		}
+	}
+	
+	// Парсим лимит
+	if limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			if l > 1000 {
+				l = 1000
+			}
+			limit = l
+		}
+	}
+	
+	// Читаем последние логи
+	logs, total, filtered, err := app.readLastLogs(priority, limit)
+	if err != nil {
+		app.JSONError(w, "Failed to read logs: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Формируем ответ
+	response := LogsResponse{
+		Logs:      logs,
+		Total:     total,
+		Filtered:  filtered,
+		Returned:  len(logs),
+		Timestamp: time.Now().Unix(),
+	}
+	
+	app.JSONResponse(w, response, http.StatusOK)
+}
+
+
 func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Удаляем куку
 	http.SetCookie(w, &http.Cookie{
@@ -311,7 +586,7 @@ func (app *App) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
-		app.JSONResponse(w, map[string]string{"message": "Успешный выход"}, http.StatusOK)
+		app.JSONResponse(w, map[string]string{"message": "Login successful"}, http.StatusOK)
 	} else {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	}
@@ -334,7 +609,15 @@ func (app *App) indexHandler(w http.ResponseWriter, r *http.Request) {
 	app.Templates.ExecuteTemplate(w, "index.html", data)
 }
 
-
+func (app *App) logsHandler(w http.ResponseWriter, r *http.Request) {
+	claims, _ := r.Context().Value(claimsKey).(*Claims)
+	
+	data := map[string]interface{}{
+		"Username": claims.Username,
+	}
+	
+	app.Templates.ExecuteTemplate(w, "logs.html", data)
+}
 
 
 // Статические файлы
@@ -358,6 +641,9 @@ func (app *App) setupRoutes() {
 	})
 	
 	protected.HandleFunc("/", app.indexHandler).Methods("GET")
+	protected.HandleFunc("/logs", app.logsHandler).Methods("GET")
+	
+	protected.HandleFunc("/api/logs", app.apiLogsHandler).Methods("GET")
 	
 }
 
