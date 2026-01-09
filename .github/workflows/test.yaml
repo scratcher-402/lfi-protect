@@ -33,6 +33,11 @@ jobs:
         if [ -f "example/requirements.txt" ]; then
           pip install -r example/requirements.txt
         fi
+    
+    - name: Copy config.yaml
+      run: |
+        # Копируем конфиг
+        cp test/config.yaml config.yaml
 
     - name: Run Go application in background
       run: |
@@ -44,7 +49,7 @@ jobs:
     - name: Wait for Go application initialization
       run: |
         echo "Waiting 10 seconds for Go application to initialize..."
-        sleep 20
+        sleep 10
         echo "Checking if Go application is running..."
         if ps -p $(cat go_app.pid) > /dev/null; then
           echo "Go application is running"
