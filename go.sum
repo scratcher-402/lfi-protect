@@ -1,3 +1,7 @@
+go.chromium.org/luci v0.0.0-20260109045956-c9fa1f801a9a h1:3Ub3CK/BSxeDBDrJ+JfkfUGsEm4pAEz2gTWHEh3CSLs=
+go.chromium.org/luci v0.0.0-20260109045956-c9fa1f801a9a/go.mod h1:feO4mGyRCiiXTFF0UX6iaRSzuroKVMrTCEZ5HUuDEsk=
+golang.org/x/sys v0.35.0 h1:vz1N37gP5bs89s7He8XuIYXpyY0+QlsKmzipCbUtyxI=
+golang.org/x/sys v0.35.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=

@@ -13,6 +13,8 @@ files:
     paths:
         - .
     exclude:
-        - example/files
-        - example/templates
-        - example/static
+        - example\files
+        - example\templates
+        - example\static
+logs:
+    logs-path: logs
