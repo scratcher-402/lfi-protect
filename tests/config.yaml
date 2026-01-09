@@ -20,3 +20,6 @@ logs:
     logs-path: logs
 admin:
     enabled: false
+    listen: ":6767"
+    username: admin
+    password: "$2a$12$rndT4q21Tj/HaWJrL5SGaOqX.WclLVs3FL6GoyMV1AqX48JhUcW66"
