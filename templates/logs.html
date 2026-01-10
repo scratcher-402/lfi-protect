@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs | Scr-LFI-Protect</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Scr-LFI-Protect</h1>
+            <div class="user-menu">
+                <span class="user-info">{{.Username}}</span>
+                <a href="/logout" class="btn-logout">Log out</a>
+            </div>
+        </div>
+    </header>
+    
+    <nav>
+        <ul>
+            <li><a href="/">Dashboard</a></li>
+            <li><a href="/logs" class="active">Logs</a></li>
+            <li><a href="/config">Config</a></li>
+        </ul>
+    </nav>
+    
+    <main>
+        <div class="container">
+            <div class="card">
+                <h2>Logs</h2>
+                
+                <!-- Фильтры -->
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="priority-filter">Priority:</label>
+                        <select id="priority-filter">
+                            <option value="0">Debug (0)</option>
+                            <option value="1" selected>Info (1)</option>
+                            <option value="2">Warning (2)</option>
+                            <option value="3">Error (3)</option>
+                            <option value="4">Fatal (4)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="limit-filter">Entries:</label>
+                        <select id="limit-filter">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="250">250</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
+                    
+                    <button id="refresh-logs" class="btn-secondary">⟳ Refresh</button>
+                </div>
+                
+                <!-- Таблица логов -->
+                <div class="table-container">
+                    <table id="logs-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Category</th>
+                                <th>Priority</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-body">
+                            <!-- Данные будут загружены через JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>Admin panel | Scr-LFI-Protect</p>
+    </footer>
+    
+    <!-- Скрипты -->
+    <script src="/static/logs.js"></script>
+</body>
+</html>

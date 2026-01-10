@@ -10,6 +10,8 @@ import (
 type Config struct {
 	Proxy ProxyConfig `yaml:"proxy"`
 	Files FilesConfig `yaml:"files"`
+	Logs LogsConfig `yaml:"logs"`
+	Admin AdminConfig `yaml:"admin"`
 }
 type ProxyConfig struct {
 	ListenAddr string `yaml:"listen"`
@@ -27,6 +29,15 @@ type FilesConfig struct {
 	Paths []string `yaml:"paths"`
 	Exclude []string `yaml:"exclude"`
 }
+type LogsConfig struct {
+	LogsPath string `yaml:"logs-path"`
+}
+type AdminConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Listen string `yaml:"listen"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
 
 func main() {
 	configFile, err := os.ReadFile("config.yaml")
@@ -38,6 +49,7 @@ func main() {
 	err = yaml.Unmarshal(configFile, &config)
 	if (err != nil) {
 		fmt.Println("Config parsing error:", err)
+		return
 	}
 	fmt.Println("Scr-LFI-Protect")
 	for _, path := range config.Files.Paths {
@@ -52,17 +64,28 @@ func main() {
 			fmt.Println("Path error", err)
 		}
 	}
-	trie := NewTrie(&config.Files)
+	logger, err := NewLogger(&config.Logs)
+	if err != nil {
+		fmt.Println("Logger creating error:", err)
+		return
+	}
+	trie := NewTrie(&config.Files, logger)
 	err = trie.Setup()
 	if err != nil {
 		fmt.Println("Trie building error:", err)
+		return
 	}
 	fmt.Println("Target URL:", config.Proxy.ServerAddr)
 	fmt.Println("Listening:", config.Proxy.ListenAddr)
-	proxy, err := NewProxy(&config.Proxy, trie)
+	proxy, err := NewProxy(&config.Proxy, trie, logger)
 	if (err != nil) {
 		fmt.Println("Proxy creating error:", err)
 		return
 	}
+	app, err := NewApp(&config.Admin, logger, trie, proxy)
+	if (err != nil) {
+		fmt.Println("Admin app creating error")
+	}
+	go app.Run()
 	http.ListenAndServe(config.Proxy.ListenAddr, proxy)
 	}

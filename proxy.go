@@ -20,10 +20,13 @@ type Proxy struct {
 	LFIPattern *regexp.Regexp
 	config *ProxyConfig
 	checkFields map[string]bool
+	logger *Logger
+	RequestsHandled int64
+	RequestsBlocked int64
 }
 
 
-func NewProxy(config *ProxyConfig, trie *Trie) (*Proxy, error) {
+func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 	base, err := url.Parse(config.ServerAddr)
 	if (err != nil) {
 		return nil, err
@@ -37,23 +40,10 @@ func NewProxy(config *ProxyConfig, trie *Trie) (*Proxy, error) {
 		originalDirector(req)
 		req.Header.Set("X-Real-IP", string(ip))
 		fmt.Println("[ ... ]", req.Method, req.URL.Path)
+		go logger.Event(LOG_DEBUG, "proxy", fmt.Sprintf("Received request %s %s", req.Method, req.URL.Path))
 	}
 
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
-			w.Header().Set("Content-Type", "text/html; charset: utf-8")
-			w.Header().Set("X-Blocked", "true")
-			w.WriteHeader(http.StatusForbidden)
-			w.Write(RenderBlockMessage())
-		} else {
-			w.Header().Set("Content-Type", "text/html; charset: utf-8")
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(RenderErrorMessage())
-		}
-		fmt.Printf("[  !  ] Proxy error: %v\n", err)
-	}
-
-	LFIPattern := regexp.MustCompile(`.*\.\./.*`)
+	LFIPattern := regexp.MustCompile(`\.\.(/|\\)`)
 
 	checkFields := map[string]bool{}
 	for _, fieldName := range config.CheckFields {
@@ -85,10 +75,32 @@ func NewProxy(config *ProxyConfig, trie *Trie) (*Proxy, error) {
 			fmt.Println("Body analyzed")
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 		}
+		go logger.ProxyAccess(resp)
 		return nil
 	}
 
-	return &Proxy{proxy: proxy, config: config, LFIPattern: LFIPattern, checkFields: checkFields}, nil
+	proxyObj :=  &Proxy{config: config, LFIPattern: LFIPattern, checkFields: checkFields, logger: logger}
+	
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
+			go logger.ProxyError(r, true, err)
+			proxyObj.RequestsBlocked++
+			w.Header().Set("Content-Type", "text/html; charset: utf-8")
+			w.Header().Set("X-Blocked", "true")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write(RenderBlockMessage())
+		} else {
+			go logger.ProxyError(r, false, err)
+			w.Header().Set("Content-Type", "text/html; charset: utf-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write(RenderErrorMessage())
+		}
+		fmt.Printf("[  !  ] Proxy error: %v\n", err)
+	}
+	
+	proxyObj.proxy = proxy
+	
+	return proxyObj, nil
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -116,9 +128,11 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.proxy.ServeHTTP(w, r)
 	fmt.Println("[ --> ] Request sent")
+	p.RequestsHandled++
 }
 
 func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+	p.logger.ProxyError(r, true, fmt.Errorf("Request blocked"))
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
@@ -142,6 +156,7 @@ func RenderBlockMessage() []byte {
 				 			  </html>`, timeString))
 }
 func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
+	p.logger.ProxyError(r, false, fmt.Errorf("Internal error"))
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write(RenderErrorMessage())

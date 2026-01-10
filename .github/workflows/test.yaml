@@ -33,6 +33,11 @@ jobs:
         if [ -f "example/requirements.txt" ]; then
           pip install -r example/requirements.txt
         fi
+    
+    - name: Copy config.yaml
+      run: |
+        # Копируем конфиг
+        cp tests/config.yaml config.yaml
 
     - name: Run Go application in background
       run: |
