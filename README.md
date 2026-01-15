@@ -21,7 +21,7 @@ cd lfi-protect
 ```
 Выполните сборку:
 ```
-go build . -o lfi-protect
+go build -o lfi-protect .
 ```
 Создайте конфигурационный файл (см. [Настройка](#Настройка))
 
