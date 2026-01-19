@@ -6,12 +6,14 @@ import json
 
 s = Session()
 base_url = "http://localhost:1545"
+insecure_url = "http://localhost:1544"
 
-# Регистрация
-s.post(f"{base_url}/register", data={"username": "user", "password": "1234"})
-s.post(f"{base_url}/register", data={"username": "user2", "password": "5678"})
+def register_users():
+    s.post(f"{base_url}/register", data={"username": "user", "password": "1234"})
+    s.post(f"{base_url}/register", data={"username": "user2", "password": "5678"})
 
-# Тестирование заметок
+# не чё-то мне лень переписывать код
+register_users()
 s.post(f"{base_url}/login", data={"username": "user", "password": "1234"})
 s.post(f"{base_url}/note/new", data={"title": "Test note", "content": "This is a test note, flag{new_note_created}"})
 note1 = s.get(f"{base_url}/note/1")

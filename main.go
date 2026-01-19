@@ -28,6 +28,8 @@ type ProxyConfig struct {
 type FilesConfig struct {
 	Paths []string `yaml:"paths"`
 	Exclude []string `yaml:"exclude"`
+	MinDepth int `yaml:"min-depth"`
+	DetectDepth int `yaml:"detect-depth"`
 }
 type LogsConfig struct {
 	LogsPath string `yaml:"logs-path"`

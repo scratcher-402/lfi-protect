@@ -1,18 +1,37 @@
 # Scr-LFI-Protect
-A security reverse proxy designed to protect web applications from
-Local File Inclusion (LFI) attacks with real-time file leak prevention.
+Обратный прокси для защиты веб-приложений от атак типа LFI
+(Loval File Inclusion) с предотвращением утечек файлов в реальном времени.
 
-## Features
-- Scanning request URL, forms, JSON for path traversal patterns (`../`, `..\`)
-- Analyzing filenames in `multipart/form-data` (Remote File Inclusion prevention)
-- Detecting file content leaks in web server responses
-- Trie data structure for high-performance leak detection
-- YAML-based flexible configuration
-- Admin panel (under development)
+## Возможности
+- Сканирование URL, форм, JSON запроса на наличие паттернов Path Traversal (`../`, `..\`)
+- Анализ имён файлов в `multipart/form-data` (защита от Remote File Inclusion)
+- Обнарудение утечек файлов в ответах веб-сервера
+- Алгоритм Ахо-Корасик для высокопроизводительного обнаружения утечек
+- Удобная конфигурация в YAML-файле и интерфейсе админ-панели
+- Админ-панель (в разработке)
 
-## Configuration
-### Basic Configuration
-Create a `config.yaml` file:
+## Инструкция по развёртыванию
+Скачайте репозиторий:
+```
+git clone https://github.com/scratcher-402/lfi-protect.git
+```
+Зайдите в папку репозитория:
+```
+cd lfi-protect
+```
+Выполните сборку:
+```
+go build -o lfi-protect .
+```
+Создайте конфигурационный файл (см. [Настройка](#Настройка))
+
+**Важно.** Измените пароль, если используете админ-панель. Сгенерировать хеш Bcrypt можно [здесь](https://bcrypt-generator.com/).
+
+Запустите `./lfi-protect` (на Mac, Linux) или `lfi-protect.exe` (на Windows)
+
+## Настройка
+### Пример конфигурации
+Создайте файл `config.yaml`:
 ```yaml
 proxy:
     listen: ":1545"
@@ -32,21 +51,36 @@ files:
         - example/files
         - example/templates
         - example/static
+    min-depth: 10
+    detect-depth: 32
 logs:
-	logs-path: logs
+    logs-path: logs
+admin:
+    enabled: true
+    listen: ":6767"
+    username: "admin"
+    password: "$2a$12$tTKc1fh6WU6Q25e0reF8Nufdyoq/iqrjsCD4Cqj1KN/cl52A6AEt2" # "admin"
 ```
-### Configuration options
-- `proxy.listen` - Reverse proxy lustening address
-- `proxy.server` - Target web application address
-- `proxy.max-req-body-size` - Maximal request body size in bytes
-- `proxy.check-url` - Inspect request URL for traversal patterns (true/false)
-- `proxy.check-query` - Inspect request URL query and text fields in form data (true/false)
-- `proxy.check-filenames` - Inspect file names in forms (true/false)
-- `proxy.check-json` - Inspect request JSON (true/false)
-- `proxy.check-file-leaks` - Inapect response for local file content leaks (true/false)
-- `proxy.check-all-fields` - Inspect every field in query, forms, JSON (true/false). If false, a list of fields from `proxy.check-fields` is used.
-
-- `files.paths` - List of sensitive files or directories to protect
-- `files.exclude` - Files, directories or patterns to exclude from monitoring
-
-- `logs.logs-path` - Directory to save logs
+### Опции конфигурации
+#### Прокси-сервер
+- `proxy.listen` - Адрес, который будет прослушивать прокси.
+- `proxy.server` - Адрес целевого веб-приложения для защиты.
+- `proxy.max-req-body-size` - Максимальный размер тела запроса (в байтах)
+- `proxy.check-url` - Проверять URL запросов (true/false)
+- `proxy.check-query` - Проверять Query-параметры и текстовые поля форм запросов (true/false)
+- `proxy.check-filenames` - Провеоять имена файлов в формах запросов (true/false)
+- `proxy.check-json` - Проверять JSON запросов (true/false)
+- `proxy.check-file-leaks` - Проверять тело ответа сервера на наличие утечек (true/false)
+- `proxy.check-all-fields` - Проверять все поля в Query, формах, JSON (true/false). Если false, используется список полей из `proxy.check-fields`.
+#### Обнаружение утечек
+- `files.paths` - Список конфиденциальных файлов и директорий для защиты.
+- `files.exclude` - Чёрный список файлов и директорий. Можно использовать паттерны с `*`.
+- `files.detect-depth` - Максимальная глубина детектирования.
+- `files.min-depth` - Минимальная глубина.
+#### Логирование
+- `logs.logs-path` - Директория для хранения логов.
+#### Админ-панель
+- `admin.enabled` - Включена ли админ-панель. (true/false)
+- `admin.listen` - Адрес админ-панели.
+- `admin.username` - Имя пользователя для входа.
+- `admin.password` - пароль для входа, хеширован в bcrypt.
