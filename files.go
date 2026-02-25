@@ -117,7 +117,11 @@ func (tw *TrieWalker) Go(index int) {
 	}
 	tw.Parent = tw.Current
 	tw.Current = next
-	tw.Depth++
+	if tw.Current == tw.Root {
+		tw.Depth = 0
+	} else {
+		tw.Depth++
+	}
 	// fmt.Printf("Moved by index %d to depth %d\n", index, tw.Depth)
 }
 func (tw *TrieWalker) Push(index int) {
@@ -257,7 +261,7 @@ func (t *Trie) AnalyzeBytes(data *[]byte) error {
 	return nil
 }
 func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error) {
-	fmt.Println("Analyzing bytes with shift", shift)
+	t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
 	t.Mutex.RLock()
 	defer t.Mutex.RUnlock()
 	walker := NewWalkerFromTrie(t)
@@ -282,7 +286,6 @@ func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error)
 			blockHash = smallBlockHash(block)
 			walker.Go(blockHash)
 			if walker.Depth >= 9 {
-				fmt.Printf("File leak detected with shift %d\n", shift)
 				err = fmt.Errorf("LFI file leak detected with shift %d, depth %d, offset %d", shift, walker.Depth, offset)
 				break
 			}
@@ -291,7 +294,7 @@ func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error)
 			break
 		}
 	}
-	fmt.Println("Analysis finished with shift", shift)
+	t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
 	result <- err
 }
 
