@@ -69,8 +69,8 @@ jobs:
 
     - name: Wait for Python app initialization
       run: |
-        echo "Waiting 10 seconds for Python app to initialize..."
-        sleep 10
+        echo "Waiting 20 seconds for Python app to initialize..."
+        sleep 20
         echo "Checking if Python app is running..."
         if [ -f "example/python_app.pid" ] && ps -p $(cat example/python_app.pid) > /dev/null; then
           echo "Python app is running"
@@ -84,6 +84,13 @@ jobs:
         cd example
         python tests.py
         cd ..
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with: 
+        name: go-app-logs
+        path: logs/
 
     - name: Cleanup background processes
       if: always()
