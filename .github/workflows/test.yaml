@@ -39,15 +39,15 @@ jobs:
         # Копируем конфиг
         cp tests/config.yaml config.yaml
 
+    - name: Create logs directory
+      run: mkdir -p logs  
+
     - name: Run Go application in background
       run: |
         # Запускаем Go приложение в фоне
         go run . >logs/go_stdout 2>logs/go_stderr &
         echo $! > go_app.pid
         echo "Go application started with PID: $(cat go_app.pid)"    
-
-    - name: Create logs directory
-      run: mkdir -p logs    
 
     - name: Wait for Go application initialization
       run: |
