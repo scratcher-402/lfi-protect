@@ -63,7 +63,7 @@ func (t *Trie) Korasikify() {
 			queue = append(queue, t.Root.To[i])
 		} else {
 			t.Root.To[i] = t.Root
-			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("(root)[%d] does not exist, set (root)[%d]=(root)", i))
+			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("(root)[%d] does not exist, set (root)[%d]=(root)", i, i))
 		}
 	}
 
