@@ -77,7 +77,7 @@ func (t *Trie) Korasikify() {
 
 			if child != nil && child != t.Root {
 				suffNode := current.SuffLink
-				for (suffNode != nil || suffNode != t.Root) && (suffNode.To[i] == t.Root || suffNode.To[i] == nil) { // build suffix link for child
+				for suffNode != nil && (suffNode.To[i] == t.Root || suffNode.To[i] == nil) { // build suffix link for child
 					suffNode = suffNode.SuffLink
 				}
 				if suffNode.To[i] != nil && suffNode.To[i] != t.Root {
