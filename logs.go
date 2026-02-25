@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -81,17 +82,20 @@ func EventFromJSON(data []byte) (*LogEvent, error) {
 
 func (logger *Logger) Event(level int, category string, message string) {
 	event := NewEvent(level, category, message)
+	if level >= logger.config.ConsoleLogLevel {
+		log.Printf("[%s] %s", category, message)
+	}
 	data, err := event.Json()
 	if err != nil {
-		fmt.Println("Logging error:", err)
+		log.Println("Logging error:", err)
 	}
 	_, err = logger.infoJsonlFile.Write(data)
 	if err != nil {
-		fmt.Println("Log writing error:", err)
+		log.Println("Log writing error:", err)
 	}
 	_, err = logger.infoJsonlFile.Write([]byte("\n"))
 	if err != nil {
-		fmt.Println("Log writing error:", err)
+		log.Println("Log writing error:", err)
 	}
 }
 
@@ -104,7 +108,7 @@ func (logger *Logger) ProxyAccess(resp *http.Response) {
 	accessLogMessage := fmt.Sprintf("[%s] %s\n", timeString, message)
 	_, err := logger.accessLogFile.Write([]byte(accessLogMessage))
 	if err != nil {
-		fmt.Println("Logs writing error:", err)
+		log.Println("Logs writing error:", err)
 	}
 }
 
@@ -117,11 +121,11 @@ func (logger *Logger) ProxyError(r *http.Request, blocked bool, err error) {
 	}
 	timeNow := time.Now()
 	logger.Event(LOG_ERROR, "proxy", message)
-	fmt.Println("proxy error")
+	log.Println("proxy error")
 	timeString := timeNow.Format(time.RFC1123)
 	errorLogMessage := fmt.Sprintf("[%s] %s\n", timeString, message)
 	_, err = logger.errorLogFile.Write([]byte(errorLogMessage))
 	if err != nil {
-		fmt.Println("Logs writing error:", err)
+		log.Println("Logs writing error:", err)
 	}
 }

@@ -51,6 +51,8 @@ func (t *Trie) Korasikify() {
 
 	queue := []*TrieNode{}
 
+	t.Root.SuffLink = t.Root
+
 	// Root links init
 	for i := 0; i < 16; i++ {
 		if t.Root.To[i] != nil {
@@ -70,7 +72,7 @@ func (t *Trie) Korasikify() {
 
 			if child != nil && child != t.Root {
 				suffNode := current.SuffLink
-				for suffNode != nil || suffNode.To[i] == t.Root || suffNode.SuffLink == t.Root { // build suffix link for child
+				for suffNode != nil && (suffNode.To[i] == t.Root || suffNode.To[i] == nil) { // build suffix link for child
 					suffNode = suffNode.SuffLink
 				}
 				if suffNode.To[i] != nil && suffNode.To[i] != t.Root {
@@ -155,7 +157,6 @@ func (t *Trie) Setup() error {
 		}
 	}
 	t.Logger.Event(LOG_INFO, "trie", fmt.Sprintf("Trie built successfully, %d files added", len(t.Files)))
-	t.Korasikify()
 	return err
 }
 func (t *Trie) addFile(path string) error {
