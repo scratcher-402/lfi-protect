@@ -42,7 +42,7 @@ jobs:
     - name: Run Go application in background
       run: |
         # Запускаем Go приложение в фоне
-        go run . &
+        go run . >logs/go_stdout 2>logs/go_stderr &
         echo $! > go_app.pid
         echo "Go application started with PID: $(cat go_app.pid)"
 
@@ -62,7 +62,7 @@ jobs:
       run: |
         # Запускаем Python приложение в фоне
         cd example
-        python app.py &
+        python app.py >logs/py_stdout 2>logs/py_stderr &
         echo $! > python_app.pid
         echo "Python app started with PID: $(cat python_app.pid)"
         cd ..
