@@ -15,6 +15,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Create logs directory
+      run: mkdir -p logs 
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
@@ -37,10 +40,7 @@ jobs:
     - name: Copy config.yaml
       run: |
         # Копируем конфиг
-        cp tests/config.yaml config.yaml
-
-    - name: Create logs directory
-      run: mkdir -p logs  
+        cp tests/config.yaml config.yaml 
 
     - name: Run Go application in background
       run: |
@@ -65,7 +65,7 @@ jobs:
       run: |
         # Запускаем Python приложение в фоне
         cd example
-        python app.py >logs/py_stdout 2>logs/py_stderr &
+        python app.py >../logs/py_stdout 2>../logs/py_stderr &
         echo $! > python_app.pid
         echo "Python app started with PID: $(cat python_app.pid)"
         cd ..

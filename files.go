@@ -59,18 +59,18 @@ func (t *Trie) Korasikify() {
 	for i := 0; i < 16; i++ {
 		if t.Root.To[i] != nil {
 			t.Root.To[i].SuffLink = t.Root
-			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
+			// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
 			queue = append(queue, t.Root.To[i])
 		} else {
 			t.Root.To[i] = t.Root
-			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("(root)[%d] does not exist, set (root)[%d]=(root)", i, i))
+			// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("(root)[%d] does not exist, set (root)[%d]=(root)", i, i))
 		}
 	}
 
 	for len(queue) != 0 {
 		current := queue[0]
 		queue = queue[1:] // take first element from queue
-		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
+		// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
 
 		for i := 0; i < 16; i++ {
 			child := current.To[i]
