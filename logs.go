@@ -1,66 +1,66 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
-	"encoding/json"
 	"time"
-	"net/http"
-	)
+)
 
 const (
-	LOG_DEBUG = 0
-	LOG_INFO = 1
+	LOG_DEBUG   = 0
+	LOG_INFO    = 1
 	LOG_WARNING = 2
-	LOG_ERROR = 3
-	LOG_FATAL = 4
-	)
+	LOG_ERROR   = 3
+	LOG_FATAL   = 4
+)
 
 type Logger struct {
-	config *LogsConfig
+	config        *LogsConfig
 	accessLogFile *os.File
-	errorLogFile *os.File
+	errorLogFile  *os.File
 	infoJsonlFile *os.File
 	infoJsonlPath string
-	}
+}
 
 func NewLogger(config *LogsConfig) (*Logger, error) {
 	logsDir := config.LogsPath
 	err := os.MkdirAll(logsDir, 0755)
-	if (err != nil) {
+	if err != nil {
 		return nil, fmt.Errorf("Logs path creating error: %w", err)
 	}
 	accessLogFile, err := os.OpenFile(filepath.Join(logsDir, "access.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if (err != nil) {
+	if err != nil {
 		return nil, fmt.Errorf("access.log file creating error: %w", err)
 	}
 	errorLogFile, err := os.OpenFile(filepath.Join(logsDir, "error.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if (err != nil) {
+	if err != nil {
 		return nil, fmt.Errorf("error.log file creating error: %w", err)
 	}
 	infoJsonlFile, err := os.OpenFile(filepath.Join(logsDir, "info.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if (err != nil) {
+	if err != nil {
 		return nil, fmt.Errorf("info.jsonl file creating error: %w", err)
 	}
 	return &Logger{config: config,
-				   accessLogFile: accessLogFile,
-				   errorLogFile: errorLogFile,
-				   infoJsonlFile: infoJsonlFile,
-				   infoJsonlPath: filepath.Join(logsDir, "info.jsonl")}, nil
+		accessLogFile: accessLogFile,
+		errorLogFile:  errorLogFile,
+		infoJsonlFile: infoJsonlFile,
+		infoJsonlPath: filepath.Join(logsDir, "info.jsonl")}, nil
 }
 
 type LogEvent struct {
-	Level int
-	Message string
+	Level    int
+	Message  string
 	UnixTime int64
 	Category string
-	}
+}
 
 func NewEvent(level int, category string, message string) *LogEvent {
 	unixTime := time.Now().Unix()
 	return &LogEvent{Level: level, Category: category, Message: message, UnixTime: unixTime}
-	}
+}
 
 func (e *LogEvent) Json() ([]byte, error) {
 	data, err := json.Marshal(*e)
@@ -68,9 +68,9 @@ func (e *LogEvent) Json() ([]byte, error) {
 		return []byte{}, err
 	}
 	return data, nil
-	}
+}
 
-func EventFromJSON (data []byte) (*LogEvent, error) {
+func EventFromJSON(data []byte) (*LogEvent, error) {
 	event := &LogEvent{}
 	err := json.Unmarshal(data, event)
 	if err != nil {

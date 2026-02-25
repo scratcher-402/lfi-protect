@@ -1,17 +1,19 @@
 package main
+
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
-	"io"
-	"fmt"
 	"sync"
-	"bytes"
 )
 
 type TrieNode struct {
-	To [](*TrieNode)
-	Term *TrieTerm
+	To       [](*TrieNode)
+	SuffLink *TrieNode
+	Term     *TrieTerm
 }
 
 type TrieTerm struct {
@@ -19,20 +21,20 @@ type TrieTerm struct {
 }
 
 type Trie struct {
-	Root *TrieNode
-	Files []string
+	Root   *TrieNode
+	Files  []string
 	Config *FilesConfig
 	Walker *TrieWalker
-	Mutex sync.RWMutex
+	Mutex  sync.RWMutex
 	Logger *Logger
 }
 
 type TrieWalker struct {
-	Trie *Trie
-	Root *TrieNode
+	Trie    *Trie
+	Root    *TrieNode
 	Current *TrieNode
-	Parent *TrieNode
-	Depth int
+	Parent  *TrieNode
+	Depth   int
 }
 
 func NewNode() *TrieNode {
@@ -41,6 +43,48 @@ func NewNode() *TrieNode {
 		to = append(to, nil)
 	}
 	return &TrieNode{To: to}
+}
+
+func (t *Trie) Korasikify() {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+
+	queue := []*TrieNode{}
+
+	// Root links init
+	for i := 0; i < 16; i++ {
+		if t.Root.To[i] != nil {
+			t.Root.To[i].SuffLink = t.Root
+			queue = append(queue, t.Root.To[i])
+		} else {
+			t.Root.To[i] = t.Root
+		}
+	}
+
+	for len(queue) != 0 {
+		current := queue[0]
+		queue = queue[1:] // take first element from queue
+
+		for i := 0; i < 16; i++ {
+			child := current.To[i]
+
+			if child != nil && child != t.Root {
+				suffNode := current.SuffLink
+				for suffNode != nil || suffNode.To[i] == t.Root || suffNode.SuffLink == t.Root { // build suffix link for child
+					suffNode = suffNode.SuffLink
+				}
+				if suffNode.To[i] != nil && suffNode.To[i] != t.Root {
+					child.SuffLink = suffNode.To[i]
+				} else {
+					child.SuffLink = t.Root
+				}
+				queue = append(queue, child)
+			} else { // If a node doesn't have a child, go through a suffix link
+				current.To[i] = current.SuffLink.To[i]
+			}
+		}
+	}
+	t.Logger.Event(LOG_INFO, "trie", "Korasikified trie successfully")
 }
 
 func NewTrie(config *FilesConfig, logger *Logger) *Trie {
@@ -111,9 +155,10 @@ func (t *Trie) Setup() error {
 		}
 	}
 	t.Logger.Event(LOG_INFO, "trie", fmt.Sprintf("Trie built successfully, %d files added", len(t.Files)))
+	t.Korasikify()
 	return err
 }
-func (t *Trie) addFile (path string) error {
+func (t *Trie) addFile(path string) error {
 	check := true
 	for _, pattern := range t.Config.Exclude {
 		match, err := filepath.Match(pattern, path)
@@ -133,7 +178,7 @@ func (t *Trie) addFile (path string) error {
 		return err
 	}
 	if info.IsDir() {
-//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
+		//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return err
@@ -150,7 +195,7 @@ func (t *Trie) addFile (path string) error {
 			}
 		}
 	} else {
-//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a file")
+		//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a file")
 		size := int(info.Size())
 		if size < 160 {
 			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Ignoring %s, too small (%d bytes)\n", path, size))
@@ -249,8 +294,7 @@ func smallBlockHash(data []byte) int {
 	result := 5
 	for _, d := range data {
 		result = (result + int(d)*mult) % 16
-		mult = (mult*7) % 16
+		mult = (mult * 7) % 16
 	}
 	return result
 }
- 
