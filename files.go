@@ -14,6 +14,7 @@ type TrieNode struct {
 	To       [](*TrieNode)
 	SuffLink *TrieNode
 	Term     *TrieTerm
+	Depth    int
 }
 
 type TrieTerm struct {
@@ -42,7 +43,7 @@ func NewNode() *TrieNode {
 	for i := 0; i < 16; i++ {
 		to = append(to, nil)
 	}
-	return &TrieNode{To: to}
+	return &TrieNode{To: to, Depth: 0}
 }
 
 func (t *Trie) Korasikify() {
@@ -161,22 +162,19 @@ func (tw *TrieWalker) Go(index int) {
 	}
 	tw.Parent = tw.Current
 	tw.Current = next
-	if tw.Current == tw.Root {
-		tw.Depth = 0
-	} else {
-		tw.Depth++
-	}
+	tw.Depth = tw.Current.Depth
 	// fmt.Printf("Moved by index %d to depth %d\n", index, tw.Depth)
 }
 func (tw *TrieWalker) Push(index int) {
 	next := tw.Current.To[index]
 	if next == nil {
 		next = NewNode()
+		next.Depth = tw.Depth + 1
 		tw.Current.To[index] = next
 	}
 	tw.Parent = tw.Current
 	tw.Current = next
-	tw.Depth++
+	tw.Depth = tw.Current.Depth
 }
 func (tw *TrieWalker) Home() {
 	tw.Current = tw.Root
