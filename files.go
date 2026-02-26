@@ -55,43 +55,87 @@ func (t *Trie) Korasikify() {
 
 	t.Root.SuffLink = t.Root
 
-	// Root links init
+	// Root links init - НЕ меняем To[i] для корня здесь
 	for i := 0; i < 16; i++ {
-		if t.Root.To[i] != nil {
+		if t.Root.To[i] != nil && t.Root.To[i] != t.Root {
 			t.Root.To[i].SuffLink = t.Root
-			// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
+			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
 			queue = append(queue, t.Root.To[i])
-		} else {
-			t.Root.To[i] = t.Root
-			// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("(root)[%d] does not exist, set (root)[%d]=(root)", i, i))
 		}
+		// НЕ устанавливаем t.Root.To[i] = t.Root здесь!
 	}
 
 	for len(queue) != 0 {
 		current := queue[0]
-		queue = queue[1:] // take first element from queue
-		// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
+		queue = queue[1:]
+		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
 
 		for i := 0; i < 16; i++ {
 			child := current.To[i]
 
 			if child != nil && child != t.Root {
-				suffNode := current.SuffLink
-				for suffNode != nil && (suffNode.To[i] == t.Root || suffNode.To[i] == nil) { // build suffix link for child
-					suffNode = suffNode.SuffLink
+				// Ребенок существует - обрабатываем его
+				suffLink := current.SuffLink
+
+				// Ищем правильную суффиксную ссылку
+				for suffLink != t.Root {
+					if suffLink.To[i] != nil && suffLink.To[i] != t.Root {
+						break
+					}
+					suffLink = suffLink.SuffLink
 				}
-				if suffNode.To[i] != nil && suffNode.To[i] != t.Root {
-					child.SuffLink = suffNode.To[i]
+
+				// Устанавливаем суффиксную ссылку для ребенка
+				if suffLink.To[i] != nil && suffLink.To[i] != t.Root {
+					child.SuffLink = suffLink.To[i]
 				} else {
 					child.SuffLink = t.Root
 				}
+
 				queue = append(queue, child)
-			} else { // If a node doesn't have a child, go through a suffix link
-				current.To[i] = current.SuffLink.To[i]
+			}
+			// НЕ меняем current.To[i] здесь!
+		}
+	}
+
+	// Второй проход: устанавливаем сжатые переходы (опционально)
+	t.buildTransitions()
+
+	t.Logger.Event(LOG_INFO, "trie", "Korasikified trie successfully")
+}
+
+// Отдельная функция для построения сжатых переходов
+func (t *Trie) buildTransitions() {
+	if t.Root == nil {
+		return
+	}
+
+	queue := []*TrieNode{t.Root}
+	visited := make(map[*TrieNode]bool)
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+
+		for i := 0; i < 16; i++ {
+			if current.To[i] == nil || current.To[i] == t.Root {
+				// Устанавливаем сжатый переход
+				if current.SuffLink != nil {
+					current.To[i] = current.SuffLink.To[i]
+				} else {
+					current.To[i] = t.Root
+				}
+			} else {
+				// Добавляем существующего ребенка в очередь
+				queue = append(queue, current.To[i])
 			}
 		}
 	}
-	t.Logger.Event(LOG_INFO, "trie", "Korasikified trie successfully")
 }
 
 func NewTrie(config *FilesConfig, logger *Logger) *Trie {
