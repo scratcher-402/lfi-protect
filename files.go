@@ -223,6 +223,7 @@ func (t *Trie) addFile(path string) error {
 		}
 	}
 	if !check {
+		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Ignoring path %s, as required by the config\n", path))
 		return nil
 	}
 	info, err := os.Stat(path)

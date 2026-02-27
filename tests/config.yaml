@@ -16,6 +16,8 @@ files:
         - example/files
         - example/templates
         - example/static
+        - templates
+        - static
 logs:
     logs-path: logs
     console-log-level: 1
