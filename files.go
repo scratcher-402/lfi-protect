@@ -56,29 +56,25 @@ func (t *Trie) Korasikify() {
 
 	t.Root.SuffLink = t.Root
 
-	// Root links init - НЕ меняем To[i] для корня здесь
 	for i := 0; i < 16; i++ {
 		if t.Root.To[i] != nil && t.Root.To[i] != t.Root {
 			t.Root.To[i].SuffLink = t.Root
-			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
+			// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Set (root)[%d]~>(root)", i))
 			queue = append(queue, t.Root.To[i])
 		}
-		// НЕ устанавливаем t.Root.To[i] = t.Root здесь!
 	}
 
 	for len(queue) != 0 {
 		current := queue[0]
 		queue = queue[1:]
-		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
+		// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Current node is %p, queue length is %d", current, len(queue)))
 
 		for i := 0; i < 16; i++ {
 			child := current.To[i]
 
 			if child != nil && child != t.Root {
-				// Ребенок существует - обрабатываем его
 				suffLink := current.SuffLink
 
-				// Ищем правильную суффиксную ссылку
 				for suffLink != t.Root {
 					if suffLink.To[i] != nil && suffLink.To[i] != t.Root {
 						break
@@ -86,7 +82,6 @@ func (t *Trie) Korasikify() {
 					suffLink = suffLink.SuffLink
 				}
 
-				// Устанавливаем суффиксную ссылку для ребенка
 				if suffLink.To[i] != nil && suffLink.To[i] != t.Root {
 					child.SuffLink = suffLink.To[i]
 				} else {
@@ -95,17 +90,13 @@ func (t *Trie) Korasikify() {
 
 				queue = append(queue, child)
 			}
-			// НЕ меняем current.To[i] здесь!
 		}
 	}
 
-	// Второй проход: устанавливаем сжатые переходы (опционально)
 	t.buildTransitions()
-
 	t.Logger.Event(LOG_INFO, "trie", "Korasikified trie successfully")
 }
 
-// Отдельная функция для построения сжатых переходов
 func (t *Trie) buildTransitions() {
 	if t.Root == nil {
 		return
@@ -125,14 +116,12 @@ func (t *Trie) buildTransitions() {
 
 		for i := 0; i < 16; i++ {
 			if current.To[i] == nil || current.To[i] == t.Root {
-				// Устанавливаем сжатый переход
 				if current.SuffLink != nil {
 					current.To[i] = current.SuffLink.To[i]
 				} else {
 					current.To[i] = t.Root
 				}
 			} else {
-				// Добавляем существующего ребенка в очередь
 				queue = append(queue, current.To[i])
 			}
 		}
@@ -304,7 +293,7 @@ func (t *Trie) AnalyzeBytes(data *[]byte) error {
 	return nil
 }
 func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error) {
-	t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
+	// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
 	t.Mutex.RLock()
 	defer t.Mutex.RUnlock()
 	walker := NewWalkerFromTrie(t)
@@ -337,7 +326,7 @@ func (t *Trie) analyzeBytesWithShift(data *[]byte, shift int, result chan error)
 			break
 		}
 	}
-	t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
+	// t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Analysis started with shift %d", shift))
 	result <- err
 }
 
