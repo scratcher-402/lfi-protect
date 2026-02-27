@@ -200,73 +200,11 @@ test16 = download_file_base64(base_url, user_id, note_id, "../../../app.py")
 add_result("Проверка защ.", "Закодированный запрос", not test16)
 
 dmin, davg, dmax, fails = benchmrk(insecure_url)
-add_result("Бенчмарк", "без защиты", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
+add_result("Бенчмарк", "без защиты", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1000/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
 
 dmin, davg, dmax, fails = benchmrk(base_url)
-add_result("Бенчмарк", "с защитой", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
+add_result("Бенчмарк", "с защитой", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1000/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
 
 rate = print_results()
 if rate < 0.5:
 	exit(1)
-# print("Проверка JSON формата")
-# app = s.get(f"{base_url}/download", json={"user_id": "2", "note_id": "2", "filename": "../../../app.py"})
-# if "flag{app_source_code_leaked}" in app.text:
-# 	print("[!] Утечка исходного кода")
-# else:
-# 	print("[+] Утечка исходного кода предотвращена")
-# hosts = s.get(f"{base_url}/download", json={"user_id": "2", "note_id": "2", "filename": "../../../../../../../../../../etc/hosts"})
-# if "localhost" in hosts.text:
-# 	print("[!] Утечка системного файла")
-# else:
-# 	print("[+] Утечка системного файла предотвращена")
-# leaked = False
-# print("Попытка brute-force атаки для получения чужого файла")
-# for id in range(1, 10000):
-# 	file = s.get(f"{base_url}/download", json={"user_id": "2", "note_id": "2", "filename": f"../../1/1/{id}.jpg"})
-# 	if "flag{user_file_leaked}" in file.text:
-# 		leaked = True
-# 		break
-# 	if id%1000 == 0:
-# 		print(f"Перебрано {id} возможных имён")
-# if leaked:
-# 	print("[!] Утечка пользовательского файла")
-# else:
-# 	print("[+] Утечка пользовательских файлов предотвращена")
-# print("Проверка закодированного JSON формата")
-
-# app = s.get(f"{base_url}/download", json=encode_request({"user_id": "2", "note_id": "2", "filename": "../../../app.py"}))
-# if "flag{app_source_code_leaked}" in app.text:
-# 	print("[!] Утечка исходного кода")
-# else:
-# 	print("[+] Утечка исходного кода предотвращена")
-# hosts = s.get(f"{base_url}/download", json=encode_request({"user_id": "2", "note_id": "2", "filename": "../../../../../../../../../../etc/hosts"}))
-# if "localhost" in hosts.text:
-# 	print("[!] Утечка системного файла")
-# else:
-# 	print("[+] Утечка системного файла предотвращена")
-# leaked = False
-# print("Попытка brute-force атаки для получения чужого файла")
-# for id in range(1, 10000):
-# 	file = s.get(f"{base_url}/download", json=encode_request({"user_id": "2", "note_id": "2", "filename": f"../../1/1/{id}.jpg"}))
-# 	if "flag{user_file_leaked}" in file.text:
-# 		leaked = True
-# 		break
-# 	if id%1000 == 0:
-# 		print(f"Перебрано {id} возможных имён")
-# if leaked:
-# 	print("[!] Утечка пользовательского файла")
-# else:
-# 	print("[+] Утечка пользовательских файлов предотвращена")
-
-# print("Бенчмарк...")
-# random_string = random.randbytes(16384).hex()
-# fake_block = 0
-# begin = time.time()
-# for i in range(10000):
-#     benchmark = s.post(f"{base_url}/benchmark", data={"data": random_string[ (i*57+67)%230 : 5000+(i*116+716)%9999 ]})
-#     if benchmark.status_code == 403:
-#         fake_block += 1
-#     if i%1000 == 0:
-#         print(f"Отправлено {i}/10000 запросов")
-# diff = time.time() - begin
-# print(f"{fake_block/100}% ложных срабатываний, {10000/diff} запросов в секунду")
