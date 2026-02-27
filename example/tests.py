@@ -84,6 +84,23 @@ def download_file_base64(base_url, user_id, note_id, filename):
 	else:
 		print(f"Ошибка получения файла <код {r.status_code}, URL {r.url}>")
 		return False
+	
+def benchmrk(base_url):
+	dmin, dtotal, dcount, dmax = 5000, 0, 0, -1
+	fails = 0
+	for _ in range(1000):
+		test_string = random.randbytes(random.randint(2048, 65536)).hex()
+		begin = time.time()
+		r = s.post(f"{base_url}/benchmark", data={"data": test_string})
+		d = (time.time()-begin)*1000
+		if d > dmax: dmax = d
+		if d < dmin: dmin = d
+		dtotal += d
+		dcount += 1
+		if r.status_code != 200:
+			fails += 1
+	return dmin, dtotal/dcount, dmax, fails
+		
 
 results = []
 
@@ -181,6 +198,12 @@ add_result("Проверка защ.", "JSON-запрос", not test15)
 
 test16 = download_file_base64(base_url, user_id, note_id, "../../../app.py")
 add_result("Проверка защ.", "Закодированный запрос", not test16)
+
+dmin, davg, dmax, fails = benchmrk(insecure_url)
+add_result("Бенчмарк", "без защиты", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
+
+dmin, davg, dmax, fails = benchmrk(base_url)
+add_result("Бенчмарк", "с защитой", True, f"задержка мин. {dmin:.2f} мс, сред. {davg:.2f} мс, макс. {dmax:.2f} мс\n{(1/davg):.2f} запросов/сек\n{fails} ложных срабатываний")
 
 rate = print_results()
 if rate < 0.5:
