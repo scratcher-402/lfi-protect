@@ -15,6 +15,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Create logs directory
+      run: mkdir -p logs 
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
@@ -37,14 +40,14 @@ jobs:
     - name: Copy config.yaml
       run: |
         # Копируем конфиг
-        cp tests/config.yaml config.yaml
+        cp tests/config.yaml config.yaml 
 
     - name: Run Go application in background
       run: |
         # Запускаем Go приложение в фоне
-        go run . &
+        GOTRACEBACK=all go run . >logs/go_stdout 2>logs/go_stderr &
         echo $! > go_app.pid
-        echo "Go application started with PID: $(cat go_app.pid)"
+        echo "Go application started with PID: $(cat go_app.pid)"    
 
     - name: Wait for Go application initialization
       run: |
@@ -62,15 +65,15 @@ jobs:
       run: |
         # Запускаем Python приложение в фоне
         cd example
-        python app.py &
+        python app.py >../logs/py_stdout 2>../logs/py_stderr &
         echo $! > python_app.pid
         echo "Python app started with PID: $(cat python_app.pid)"
         cd ..
 
     - name: Wait for Python app initialization
       run: |
-        echo "Waiting 10 seconds for Python app to initialize..."
-        sleep 10
+        echo "Waiting 20 seconds for Python app to initialize..."
+        sleep 20
         echo "Checking if Python app is running..."
         if [ -f "example/python_app.pid" ] && ps -p $(cat example/python_app.pid) > /dev/null; then
           echo "Python app is running"
@@ -84,6 +87,13 @@ jobs:
         cd example
         python tests.py
         cd ..
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with: 
+        name: go-app-logs
+        path: logs/
 
     - name: Cleanup background processes
       if: always()
