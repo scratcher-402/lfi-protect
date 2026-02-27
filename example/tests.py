@@ -91,14 +91,14 @@ def add_result(group, test, success, data=None):
 	results.append((group, test, success, data))
 	success_string = "УСПЕШНО" if success else "ОШИБКА"
 	print(f"[{success_string}] ({group}/{test})")
+	if data:
+		print(data)
 
 def print_results():
 	success_count = 0
 	for group, test, success, data in results:
-		success_string = "УСПЕШНО" if success else "ОШИБКА"
-		success_count += success
-		print(f"[{success_string}] ({group}/{test})")
-		if data: print(data)
+		if success:
+			success_count += 1
 	print(f"Пройдено {success_count} тестов из {len(results)}")
 	return success_count/len(results)
 
