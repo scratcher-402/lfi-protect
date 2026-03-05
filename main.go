@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -27,6 +28,9 @@ type ProxyConfig struct {
 	CheckAllFields bool     `yaml:"check-all-fields"`
 	CheckFields    []string `yaml:"check-fields"`
 	CheckFileLeaks bool     `yaml:"check-file-leaks"`
+	BlockEnabled   bool     `yaml:"block-enabled"`
+	BlockErrorRate int 	    `yaml:"block-error-rate"`
+	BlockInterval  int 	    `yaml:"block-interval"`
 }
 type FilesConfig struct {
 	Paths       []string `yaml:"paths"`
@@ -74,6 +78,7 @@ func main() {
 		log.Println("Logger creating error:", err)
 		return
 	}
+	ipban := NewIPBan(time.Duration(config.Proxy.BlockInterval) * time.Second, config.Proxy.BlockErrorRate, logger)
 	trie := NewTrie(&config.Files, logger)
 	err = trie.Setup()
 	trie.Korasikify()
@@ -83,7 +88,7 @@ func main() {
 	}
 	log.Println("Target URL:", config.Proxy.ServerAddr)
 	log.Println("Listening:", config.Proxy.ListenAddr)
-	proxy, err := NewProxy(&config.Proxy, trie, logger)
+	proxy, err := NewProxy(&config.Proxy, trie, logger, ipban)
 	if err != nil {
 		log.Println("Proxy creating error:", err)
 		return
