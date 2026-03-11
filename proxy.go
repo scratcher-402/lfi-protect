@@ -1,36 +1,36 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"net"
-	"fmt"
 	"regexp"
 	"strings"
-	"bytes"
-	"io"
-	"encoding/json"
 	"time"
-	"log"
-	)
+)
 
 type Proxy struct {
-	baseURL         *url.URL
-	proxy           *httputil.ReverseProxy
-	LFIPattern      *regexp.Regexp
-	config          *ProxyConfig
-	checkFields     map[string]bool
-	logger          *Logger
-	RequestsHandled int64
-	RequestsBlocked int64
-	ipban           *IPBan
+	baseURL             *url.URL
+	proxy               *httputil.ReverseProxy
+	LFIPattern          *regexp.Regexp
+	execFileNamePattern *regexp.Regexp
+	config              *ProxyConfig
+	checkFields         map[string]bool
+	logger              *Logger
+	RequestsHandled     int64
+	RequestsBlocked     int64
+	ipban               *IPBan
 }
-
 
 func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*Proxy, error) {
 	base, err := url.Parse(config.ServerAddr)
-	if (err != nil) {
+	if err != nil {
 		return nil, err
 	}
 	proxy := httputil.NewSingleHostReverseProxy(base)
@@ -46,6 +46,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 	}
 
 	LFIPattern := regexp.MustCompile(`\.\.(/|\\)`)
+	execFileNamePattern := regexp.MustCompile(`\.(py|php|js)$`)
 
 	checkFields := map[string]bool{}
 	for _, fieldName := range config.CheckFields {
@@ -53,7 +54,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 	}
 
 	originalModifyResponse := proxy.ModifyResponse
-	proxy.ModifyResponse = func (resp *http.Response) error {
+	proxy.ModifyResponse = func(resp *http.Response) error {
 		if originalModifyResponse != nil {
 			err := originalModifyResponse(resp)
 			if err != nil {
@@ -61,7 +62,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 			}
 		}
 		if config.CheckFileLeaks {
-			var bodyBuffer bytes.Buffer	
+			var bodyBuffer bytes.Buffer
 			bodyReader := io.TeeReader(resp.Body, &bodyBuffer)
 			body, err := io.ReadAll(bodyReader)
 			if err != nil {
@@ -78,8 +79,8 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 		return nil
 	}
 
-	proxyObj :=  &Proxy{config: config, LFIPattern: LFIPattern, checkFields: checkFields, logger: logger, ipban: ipban}
-	
+	proxyObj := &Proxy{config: config, LFIPattern: LFIPattern, execFileNamePattern: execFileNamePattern, checkFields: checkFields, logger: logger, ipban: ipban}
+
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
 			go logger.ProxyError(r, true, err)
@@ -95,9 +96,9 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 		}
 		log.Printf("[  !  ] Proxy error: %v\n", err)
 	}
-	
+
 	proxyObj.proxy = proxy
-	
+
 	return proxyObj, nil
 }
 
@@ -204,23 +205,23 @@ func (p *Proxy) checkRequestBody(r *http.Request) error {
 		return p.checkRequestJSON(r)
 	}
 	return nil
-	}
+}
 
 func (p *Proxy) checkRequestForm(r *http.Request) error {
 	if !p.config.CheckQuery {
 		return nil
 	}
-	
+
 	var bodyBuffer bytes.Buffer
 	bodyReader := io.TeeReader(r.Body, &bodyBuffer)
 	reqParse := &http.Request{
 		Method: r.Method,
 		Header: r.Header,
-		Body: io.NopCloser(bodyReader),
+		Body:   io.NopCloser(bodyReader),
 	}
 
 	err := reqParse.ParseForm()
-	if (err != nil) {
+	if err != nil {
 		return err
 	}
 	for field, values := range reqParse.PostForm {
@@ -247,7 +248,7 @@ func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
 	reqParse := &http.Request{
 		Method: r.Method,
 		Header: r.Header,
-		Body: io.NopCloser(bodyReader),
+		Body:   io.NopCloser(bodyReader),
 	}
 
 	reader, err := reqParse.MultipartReader()
@@ -271,6 +272,9 @@ func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
 			if p.LFIPattern.MatchString(fileName) {
 				return fmt.Errorf("LFI pattern in filename detected")
 			}
+			if p.execFileNamePattern.MatchString(fileName) {
+				return fmt.Errorf("Executable file extension detected")
+			}
 		} else {
 			if p.fieldCheckNeeded(field) {
 				value, err := io.ReadAll(part)
@@ -289,7 +293,7 @@ func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
 }
 
 func (p *Proxy) checkRequestJSON(r *http.Request) error {
-	if (!p.config.CheckJSON) {
+	if !p.config.CheckJSON {
 		return nil
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, int64(p.config.MaxReqBodySize)))
@@ -312,39 +316,39 @@ func (p *Proxy) checkRequestJSON(r *http.Request) error {
 func (p *Proxy) scanJSON(jsonData interface{}) error {
 	var err error
 	switch jsonData.(type) {
-		case map[string]interface{}:
-			for key, value := range jsonData.(map[string]interface{}) {
-				switch value.(type) {
-					case string:
-						if p.fieldCheckNeeded(key) {
-							if p.LFIPattern.MatchString(value.(string)) {
-								return fmt.Errorf("LFI pattern detected in JSON field")
-							}
-						}
-					default:
-						err = p.scanJSON(value)
-						if err != nil {
-							return err
-						}
+	case map[string]interface{}:
+		for key, value := range jsonData.(map[string]interface{}) {
+			switch value.(type) {
+			case string:
+				if p.fieldCheckNeeded(key) {
+					if p.LFIPattern.MatchString(value.(string)) {
+						return fmt.Errorf("LFI pattern detected in JSON field")
+					}
 				}
-			}
-		case []interface{}:
-			for _, value := range jsonData.([]interface{}) {
+			default:
 				err = p.scanJSON(value)
 				if err != nil {
 					return err
 				}
 			}
-		case string:
-			if p.fieldCheckNeeded("*") {
-				if p.LFIPattern.MatchString(jsonData.(string)) {
-					return fmt.Errorf("LFI pattern in JSON field detected")
-				}
+		}
+	case []interface{}:
+		for _, value := range jsonData.([]interface{}) {
+			err = p.scanJSON(value)
+			if err != nil {
+				return err
 			}
-		case json.Number:
-			break
-		case bool, nil:
-			break
+		}
+	case string:
+		if p.fieldCheckNeeded("*") {
+			if p.LFIPattern.MatchString(jsonData.(string)) {
+				return fmt.Errorf("LFI pattern in JSON field detected")
+			}
+		}
+	case json.Number:
+		break
+	case bool, nil:
+		break
 	}
 	return nil
 }
@@ -386,17 +390,16 @@ func (p *Proxy) checkBanned(r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse remote address")
 	}
-	
+
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return fmt.Errorf("invalid IP address")
 	}
-	
+
 	if p.ipban.IsBanned(parsedIP) {
 		p.logger.Event(LOG_WARNING, "proxy", fmt.Sprintf("Request from banned IP %s rejected", ip))
 		return fmt.Errorf("IP address is banned")
 	}
-	
+
 	return nil
 }
-
