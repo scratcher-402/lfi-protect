@@ -137,7 +137,7 @@ def dashboard():
 
     return render_template('dashboard.html',
                          user_notes=user_notes,
-                         shared_notes=shared_notes)
+                         shared_notes=shared_notes), 200, {"Test-User-ID": str(current_user.id)}
 
 
 @app.route('/note/<int:note_id>')

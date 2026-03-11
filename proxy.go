@@ -12,21 +12,23 @@ import (
 	"io"
 	"encoding/json"
 	"time"
+	"log"
 	)
 
 type Proxy struct {
-	baseURL *url.URL
-	proxy *httputil.ReverseProxy
-	LFIPattern *regexp.Regexp
-	config *ProxyConfig
-	checkFields map[string]bool
-	logger *Logger
+	baseURL         *url.URL
+	proxy           *httputil.ReverseProxy
+	LFIPattern      *regexp.Regexp
+	config          *ProxyConfig
+	checkFields     map[string]bool
+	logger          *Logger
 	RequestsHandled int64
 	RequestsBlocked int64
+	ipban           *IPBan
 }
 
 
-func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
+func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*Proxy, error) {
 	base, err := url.Parse(config.ServerAddr)
 	if (err != nil) {
 		return nil, err
@@ -39,7 +41,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 		ip, _, _ := net.SplitHostPort(req.RemoteAddr)
 		originalDirector(req)
 		req.Header.Set("X-Real-IP", string(ip))
-		fmt.Println("[ ... ]", req.Method, req.URL.Path)
+		log.Println("[ ... ]", req.Method, req.URL.Path)
 		go logger.Event(LOG_DEBUG, "proxy", fmt.Sprintf("Received request %s %s", req.Method, req.URL.Path))
 	}
 
@@ -59,7 +61,6 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 			}
 		}
 		if config.CheckFileLeaks {
-			fmt.Println("Analyzing response")
 			var bodyBuffer bytes.Buffer	
 			bodyReader := io.TeeReader(resp.Body, &bodyBuffer)
 			body, err := io.ReadAll(bodyReader)
@@ -67,35 +68,32 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 				resp.Body = io.NopCloser(&bodyBuffer)
 				return err
 			}
-			fmt.Println("Body read")
 			err = trie.AnalyzeBytes(&body)
 			if err != nil {
 				return err
 			}
-			fmt.Println("Body analyzed")
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 		}
 		go logger.ProxyAccess(resp)
 		return nil
 	}
 
-	proxyObj :=  &Proxy{config: config, LFIPattern: LFIPattern, checkFields: checkFields, logger: logger}
+	proxyObj :=  &Proxy{config: config, LFIPattern: LFIPattern, checkFields: checkFields, logger: logger, ipban: ipban}
 	
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
 			go logger.ProxyError(r, true, err)
-			proxyObj.RequestsBlocked++
 			w.Header().Set("Content-Type", "text/html; charset: utf-8")
 			w.Header().Set("X-Blocked", "true")
 			w.WriteHeader(http.StatusForbidden)
-			w.Write(RenderBlockMessage())
+			w.Write(RenderBlockMessage(err.Error()))
 		} else {
 			go logger.ProxyError(r, false, err)
 			w.Header().Set("Content-Type", "text/html; charset: utf-8")
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write(RenderErrorMessage())
 		}
-		fmt.Printf("[  !  ] Proxy error: %v\n", err)
+		log.Printf("[  !  ] Proxy error: %v\n", err)
 	}
 	
 	proxyObj.proxy = proxy
@@ -104,10 +102,21 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger) (*Proxy, error) {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	err := p.checkURL(r)
+	var err error
+	if p.config.BlockEnabled {
+		err = p.checkBanned(r)
+	}
+	if err != nil {
+		p.sendBlockMessage(w, r, err.Error())
+		return
+	}
+	err = p.checkURL(r)
 	if err != nil {
 		if strings.Contains(err.Error(), "LFI") {
-			p.sendBlockMessage(w, r)
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			p.ipban.Trigger(net.ParseIP(ip))
+			p.sendBlockMessage(w, r, "LFI pattern detected in URL or query parameters")
+			p.RequestsBlocked++
 			return
 		} else {
 			fmt.Println(err)
@@ -118,7 +127,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = p.checkRequestBody(r)
 	if err != nil {
 		if strings.Contains(err.Error(), "LFI") {
-			p.sendBlockMessage(w, r)
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			p.ipban.Trigger(net.ParseIP(ip))
+			p.sendBlockMessage(w, r, "LFI pattern detected in request body")
+			p.RequestsBlocked++
 			return
 		} else {
 			fmt.Println(err)
@@ -127,19 +139,19 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p.proxy.ServeHTTP(w, r)
-	fmt.Println("[ --> ] Request sent")
+	log.Println("[ --> ] Request sent")
 	p.RequestsHandled++
 }
 
-func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) sendBlockMessage(w http.ResponseWriter, r *http.Request, reason string) {
 	p.logger.ProxyError(r, true, fmt.Errorf("Request blocked"))
 	w.Header().Set("Content-Type", "text/html; charset: utf-8")
 	w.Header().Set("X-Blocked", "true")
 	w.WriteHeader(http.StatusForbidden)
-	w.Write(RenderBlockMessage())
+	w.Write(RenderBlockMessage(reason))
 	fmt.Println("[ -X  ] Request blocked")
 }
-func RenderBlockMessage() []byte {
+func RenderBlockMessage(reason string) []byte {
 	timeString := time.Now().UTC().Format("2006-01-02 15:04:05 UTC")
 	return []byte(fmt.Sprintf(`<!DOCTYPE html>
 				 			  <html lang="en">
@@ -151,9 +163,10 @@ func RenderBlockMessage() []byte {
 				 				<p>Your request has been blocked by our security system.</p>
 				 				<p>If you believe this is an error, please contact support.</p>
 				 				Time: %s<br>
+								Reason: %s<br>
 				 				Scr-LFI-Protect
 				 			  </body>
-				 			  </html>`, timeString))
+				 			  </html>`, timeString, reason))
 }
 func (p *Proxy) sendErrorMessage(w http.ResponseWriter, r *http.Request) {
 	p.logger.ProxyError(r, false, fmt.Errorf("Internal error"))
@@ -367,3 +380,23 @@ func (p *Proxy) fieldCheckNeeded(fieldName string) bool {
 	}
 	return value
 }
+
+func (p *Proxy) checkBanned(r *http.Request) error {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return fmt.Errorf("failed to parse remote address")
+	}
+	
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return fmt.Errorf("invalid IP address")
+	}
+	
+	if p.ipban.IsBanned(parsedIP) {
+		p.logger.Event(LOG_WARNING, "proxy", fmt.Sprintf("Request from banned IP %s rejected", ip))
+		return fmt.Errorf("IP address is banned")
+	}
+	
+	return nil
+}
+
