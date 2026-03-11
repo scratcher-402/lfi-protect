@@ -82,7 +82,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 	proxyObj := &Proxy{config: config, LFIPattern: LFIPattern, execFileNamePattern: execFileNamePattern, checkFields: checkFields, logger: logger, ipban: ipban}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") {
+		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "File leak") || strings.Contains(err.Error(), "file extension") {
 			go logger.ProxyError(r, true, err)
 			w.Header().Set("Content-Type", "text/html; charset: utf-8")
 			w.Header().Set("X-Blocked", "true")
@@ -127,7 +127,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	err = p.checkRequestBody(r)
 	if err != nil {
-		if strings.Contains(err.Error(), "LFI") {
+		if strings.Contains(err.Error(), "LFI") || strings.Contains(err.Error(), "file extension") {
 			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 			p.ipban.Trigger(net.ParseIP(ip))
 			p.sendBlockMessage(w, r, "LFI pattern detected in request body")

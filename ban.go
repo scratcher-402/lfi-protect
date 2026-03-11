@@ -8,12 +8,12 @@ import (
 )
 
 type IPBan struct {
-	mu         sync.RWMutex
-	triggers   map[string][]time.Time
-	banned     map[string]bool
-	window     time.Duration
+	mu          sync.RWMutex
+	triggers    map[string][]time.Time
+	banned      map[string]bool
+	window      time.Duration
 	maxTriggers int
-	logger     *Logger
+	logger      *Logger
 }
 
 func NewIPBan(window time.Duration, maxTriggers int, logger *Logger) *IPBan {
