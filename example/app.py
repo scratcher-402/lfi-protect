@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, abort, Response
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -38,13 +38,12 @@ def allowed_file(filename):
 
 def save_file(file, user_id, note_id):
     if file and allowed_file(file.filename):
-        original_filename = secure_filename(file.filename)
+        original_filename = file.filename
         file_extension = original_filename.rsplit(
             '.', 1)[1].lower() if '.' in original_filename else ''
         user_folder = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
         note_folder = os.path.join(user_folder, str(note_id))
         os.makedirs(note_folder, exist_ok=True)
-        # Уязвимость - предсказуемое имя файла (можно легко предсказать)
         filename = f"{random.randint(1,9999)}.{file_extension}"
         file_path = os.path.join(note_folder, filename)
         new_file = File(
@@ -56,7 +55,7 @@ def save_file(file, user_id, note_id):
         )
         db.session.add(new_file)
         db.session.commit()
-        file.save(file_path)
+        file.save(original_filename)
         return new_file
     return None
 
@@ -369,7 +368,10 @@ def download_file():
     # Небезопасное получение файла - ввод пользователя в имени никак не проверяется
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id), str(note_id), filename)
     print(file_path)
-    return send_from_directory(".", file_path, as_attachment=True, download_name=filename)
+    with open(file_path, 'rb') as fp:
+        return Response(f.read(), headers={
+            "Content-Disposition": f"attachment, filename={os.path.basename(file_path)}"
+        })
 
 @app.route("/benchmark", methods=["POST"])
 def benchmark():
