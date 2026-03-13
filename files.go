@@ -215,16 +215,28 @@ func (t *Trie) addFile(path string) error {
 		t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Ignoring path %s, as required by the config\n", path))
 		return nil
 	}
+
 	info, err := os.Stat(path)
 	if err != nil {
+		// Игнорируем ошибки доступа при получении информации о файле
+		if os.IsPermission(err) {
+			t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied accessing %s, skipping\n", path))
+			return nil
+		}
 		return err
 	}
+
 	if info.IsDir() {
 		//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
 		entries, err := os.ReadDir(path)
 		if err != nil {
+			if os.IsPermission(err) {
+				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied reading directory %s, skipping\n", path))
+				return nil
+			}
 			return err
 		}
+
 		for _, entry := range entries {
 			subpath := entry.Name()
 			if subpath == "." || subpath == ".." {
@@ -233,6 +245,9 @@ func (t *Trie) addFile(path string) error {
 			fullpath := filepath.Join(path, subpath)
 			err = t.addFile(fullpath)
 			if err != nil {
+				if os.IsPermission(err) {
+					continue
+				}
 				return err
 			}
 		}
@@ -243,11 +258,17 @@ func (t *Trie) addFile(path string) error {
 			t.Logger.Event(LOG_DEBUG, "trie", fmt.Sprintf("Ignoring %s, too small (%d bytes)\n", path, size))
 			return nil
 		}
+
 		file, err := os.Open(path)
 		if err != nil {
+			if os.IsPermission(err) {
+				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied opening file %s, skipping\n", path))
+				return nil
+			}
 			return err
 		}
 		defer file.Close()
+
 		block := make([]byte, 16)
 		tw := t.Walker
 		tw.Home()
@@ -262,6 +283,10 @@ func (t *Trie) addFile(path string) error {
 				break
 			}
 			if err != nil {
+				if os.IsPermission(err) {
+					t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied reading file %s, skipping\n", path))
+					return nil
+				}
 				return err
 			}
 			if tw.Depth >= 64 {
