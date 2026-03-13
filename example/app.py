@@ -32,30 +32,27 @@ def load_user(user_id):
 
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit(
-    '.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    return True # - уязвимость - нет проверки расширения файла
 
 
 def save_file(file, user_id, note_id):
     if file and allowed_file(file.filename):
         original_filename = file.filename
-        file_extension = original_filename.rsplit(
-            '.', 1)[1].lower() if '.' in original_filename else ''
         user_folder = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
         note_folder = os.path.join(user_folder, str(note_id))
         os.makedirs(note_folder, exist_ok=True)
-        filename = f"{random.randint(1,9999)}.{file_extension}"
-        file_path = os.path.join(note_folder, filename)
+        file_path = note_folder + os.sep + original_filename
+        print(file_path)
         new_file = File(
             filename=original_filename,
-            unique_filename=filename,
+            unique_filename=original_filename,
             file_path=file_path,
             note_id=note_id,
             user_id=user_id
         )
         db.session.add(new_file)
         db.session.commit()
-        file.save(original_filename)
+        file.save(file_path) # - уязвимость File Upload - запись файла по произвольному пути
         return new_file
     return None
 
@@ -369,8 +366,8 @@ def download_file():
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id), str(note_id), filename)
     print(file_path)
     with open(file_path, 'rb') as fp:
-        return Response(f.read(), headers={
-            "Content-Disposition": f"attachment, filename={os.path.basename(file_path)}"
+        return Response(fp.read(), headers={
+            "Content-Disposition": f"attachment; filename={os.path.basename(file_path)}"
         })
 
 @app.route("/benchmark", methods=["POST"])
