@@ -45,7 +45,7 @@ func NewProxy(config *ProxyConfig, trie *Trie, logger *Logger, ipban *IPBan) (*P
 		go logger.Event(LOG_DEBUG, "proxy", fmt.Sprintf("Received request %s %s", req.Method, req.URL.Path))
 	}
 
-	LFIPattern := regexp.MustCompile(`\.\.(/|\\)`)
+	LFIPattern := regexp.MustCompile(`(\.|%2E){2}(/|\\|%2F)`)
 	execFileNamePattern := regexp.MustCompile(`\.(py|php|js)$`)
 
 	checkFields := map[string]bool{}
@@ -243,52 +243,16 @@ func (p *Proxy) checkRequestMultipartForm(r *http.Request) error {
 		return nil
 	}
 
-	var bodyBuffer bytes.Buffer
-	bodyReader := io.TeeReader(r.Body, &bodyBuffer)
-	reqParse := &http.Request{
-		Method: r.Method,
-		Header: r.Header,
-		Body:   io.NopCloser(bodyReader),
-	}
-
-	reader, err := reqParse.MultipartReader()
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
 	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
 
-	for {
-		part, err := reader.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		field := part.FormName()
-		fileName := part.FileName()
-
-		if fileName != "" {
-			if p.LFIPattern.MatchString(fileName) {
-				return fmt.Errorf("LFI pattern in filename detected")
-			}
-			if p.execFileNamePattern.MatchString(fileName) {
-				return fmt.Errorf("Executable file extension detected")
-			}
-		} else {
-			if p.fieldCheckNeeded(field) {
-				value, err := io.ReadAll(part)
-				if err != nil {
-					return err
-				}
-				if p.LFIPattern.Match(value) {
-					return fmt.Errorf("LFI pattern in form field detected")
-				}
-			}
-		}
+	if p.LFIPattern.Match(body) {
+		return fmt.Errorf("LFI patern detected in multipart request body")
 	}
 
-	r.Body = io.NopCloser(&bodyBuffer)
 	return nil
 }
 
