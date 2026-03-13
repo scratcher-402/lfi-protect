@@ -230,8 +230,8 @@ func (t *Trie) addFile(path string) error {
 		//		t.Logger.Event(LOG_DEBUG, "trie", "Path "+path+" is a directory")
 		entries, err := os.ReadDir(path)
 		if err != nil {
-			if os.IsPermission(err) {
-				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied reading directory %s, skipping\n", path))
+			if os.IsPermission(err) || os.IsNotExist(err) {
+				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Error while reading directory %s, skipping\n", path))
 				return nil
 			}
 			return err
@@ -261,8 +261,8 @@ func (t *Trie) addFile(path string) error {
 
 		file, err := os.Open(path)
 		if err != nil {
-			if os.IsPermission(err) {
-				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied opening file %s, skipping\n", path))
+			if os.IsPermission(err) || os.IsNotExist((err)) {
+				t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Error opening file %s, skipping\n", path))
 				return nil
 			}
 			return err
@@ -283,8 +283,8 @@ func (t *Trie) addFile(path string) error {
 				break
 			}
 			if err != nil {
-				if os.IsPermission(err) {
-					t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied reading file %s, skipping\n", path))
+				if os.IsPermission(err) || os.IsNotExist(err) {
+					t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Error while reading file %s, skipping\n", path))
 					return nil
 				}
 				return err
