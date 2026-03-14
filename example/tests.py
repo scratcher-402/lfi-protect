@@ -5,7 +5,7 @@ import base64
 import json
 
 s = Session()
-base_url = "http://localhost:1545"
+base_url = "http://localhost:2026"
 insecure_url = "http://localhost:1544"
 
 def register_users(base_url):
@@ -171,7 +171,6 @@ add_result("Функц. веб-прил. с защитой", "Прикрепле
 
 logout(insecure_url)
 user_id = login(insecure_url, "user", "1234")
-note_id, note_text = create_note(insecure_url, "Test2 note", "Test")
 
 file = download_file(insecure_url, user_id, note_id, "../../../app.py")
 test11 = "flag{app_source_code_leaked}" in file
