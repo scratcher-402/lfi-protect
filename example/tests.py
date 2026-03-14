@@ -5,7 +5,7 @@ import base64
 import json
 
 s = Session()
-base_url = "http://localhost:2026"
+base_url = "http://localhost:1545"
 insecure_url = "http://localhost:1544"
 
 def register_users(base_url):
