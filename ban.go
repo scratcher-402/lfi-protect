@@ -41,7 +41,6 @@ func (ib *IPBan) Trigger(ip net.IP) bool {
 	now := time.Now()
 	ib.triggers[ipStr] = append(ib.triggers[ipStr], now)
 
-	// Remove old triggers outside window
 	var recent []time.Time
 	for _, t := range ib.triggers[ipStr] {
 		if now.Sub(t) <= ib.window {

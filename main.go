@@ -29,8 +29,8 @@ type ProxyConfig struct {
 	CheckFields    []string `yaml:"check-fields"`
 	CheckFileLeaks bool     `yaml:"check-file-leaks"`
 	BlockEnabled   bool     `yaml:"block-enabled"`
-	BlockErrorRate int 	    `yaml:"block-error-rate"`
-	BlockInterval  int 	    `yaml:"block-interval"`
+	BlockErrorRate int      `yaml:"block-error-rate"`
+	BlockInterval  int      `yaml:"block-interval"`
 }
 type FilesConfig struct {
 	Paths       []string `yaml:"paths"`
@@ -65,12 +65,14 @@ func main() {
 		path, err = filepath.Abs(path)
 		if err != nil {
 			log.Println("Path error", err)
+			return
 		}
 	}
 	for _, path := range config.Files.Exclude {
 		path, err = filepath.Abs(path)
 		if err != nil {
 			log.Println("Path error", err)
+			return
 		}
 	}
 	logger, err := NewLogger(&config.Logs)
@@ -78,7 +80,7 @@ func main() {
 		log.Println("Logger creating error:", err)
 		return
 	}
-	ipban := NewIPBan(time.Duration(config.Proxy.BlockInterval) * time.Second, config.Proxy.BlockErrorRate, logger)
+	ipban := NewIPBan(time.Duration(config.Proxy.BlockInterval)*time.Second, config.Proxy.BlockErrorRate, logger)
 	trie := NewTrie(&config.Files, logger)
 	err = trie.Setup()
 	trie.Korasikify()
@@ -96,6 +98,7 @@ func main() {
 	app, err := NewApp(&config.Admin, logger, trie, proxy)
 	if err != nil {
 		log.Println("Admin app creating error")
+		return
 	}
 	go app.Run()
 	log.Println("Scr-LFI-Protect is running")

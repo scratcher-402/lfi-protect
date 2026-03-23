@@ -371,7 +371,7 @@ button:disabled {
     color: #495057;
 }
 
-/* Таблица */
+/* Logs table */
 .table-container {
     overflow-x: auto;
     border-radius: 8px;
@@ -417,9 +417,10 @@ button:disabled {
 #logs-table tbody td {
     padding: 0.75rem 1rem;
     vertical-align: top;
+    color: white;
 }
 
-/* Стили для приоритетов */
+
 .priority-badge {
     display: inline-block;
     padding: 0.25rem 0.5rem;
@@ -431,31 +432,31 @@ button:disabled {
     min-width: 80px;
 }
 
-.priority-debug { background-color: #6c757d !important; }
-.priority-info { background-color: #17a2b8 !important; }
-.priority-warning { background-color: #ffc107 !important; color: #212529; }
-.priority-error { background-color: #dc3545 !important; }
+.priority-debug { background-color: #001930 !important; }
+.priority-info { background-color: #004b27 !important; }
+.priority-warning { background-color: #755910 !important; }
+.priority-error { background-color: #72000b !important; }
 .priority-fatal { background-color: #721c24 !important; }
 
-/* Цвет строк по приоритету */
+/* Log level colors */
 .log-row.priority-debug {
-    background-color: rgba(108, 117, 125, 0.05);
+    background-color: rgba(0, 77, 6, 0.125);
 }
 
 .log-row.priority-info {
-    background-color: rgba(23, 162, 184, 0.05);
+    background-color: rgba(4, 89, 102, 0.106);
 }
 
 .log-row.priority-warning {
-    background-color: rgba(255, 193, 7, 0.05);
+    background-color: rgba(229, 114, 0, 0.07);
 }
 
 .log-row.priority-error {
-    background-color: rgba(220, 53, 69, 0.05);
+    background-color: rgba(102, 1, 11, 0.05);
 }
 
 .log-row.priority-fatal {
-    background-color: rgba(114, 28, 36, 0.05);
+    background-color: rgba(106, 0, 11, 0.176);
 }
 
 /* Колонки */
@@ -486,7 +487,7 @@ button:disabled {
 
 .time-full {
     font-weight: 500;
-    color: #495057;
+    color: #a8d3fe;
 }
 
 .time-relative {
@@ -502,7 +503,7 @@ button:disabled {
     border-radius: 4px;
     color: #495057;
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .message-content {
@@ -539,7 +540,7 @@ button:disabled {
     background: #dee2e6;
 }
 
-/* Статистика */
+
 .log-stats {
     display: flex;
     justify-content: space-between;
@@ -569,7 +570,7 @@ button:disabled {
     font-size: 1.1rem;
 }
 
-/* Действия с логами */
+
 .log-actions {
     display: flex;
     justify-content: space-between;
@@ -592,7 +593,7 @@ button:disabled {
     margin: 0;
 }
 
-/* Сообщения */
+
 .no-data,
 .error-message {
     text-align: center;
@@ -602,10 +603,10 @@ button:disabled {
 }
 
 .error-message {
-    color: #dc3545 !important;
+    color: #591118 !important;
 }
 
-/* Подсветка поиска */
+
 mark {
     background-color: #fff3cd;
     padding: 0.1rem 0.2rem;

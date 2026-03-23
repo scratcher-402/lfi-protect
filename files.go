@@ -218,7 +218,6 @@ func (t *Trie) addFile(path string) error {
 
 	info, err := os.Stat(path)
 	if err != nil {
-		// Игнорируем ошибки доступа при получении информации о файле
 		if os.IsPermission(err) {
 			t.Logger.Event(LOG_WARNING, "trie", fmt.Sprintf("Permission denied accessing %s, skipping\n", path))
 			return nil
